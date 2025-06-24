@@ -23,17 +23,28 @@ cpal = "0.15"
 # Wayland clipboard integration
 wl-clipboard-rs = "0.8"
 
+# JSON serialization for API responses
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+thiserror = "1.0"
+
+# Process daemonization
+daemonize = "0.5"
+libc = "0.2"
+
 # Optional dependencies (features)
 candle-core = { version = "0.7", optional = true }
-enigo = { version = "0.2", optional = true }
 
 [dev-dependencies]
 tempfile = "3.0"
+mockito = "1.0"
+tokio-test = "0.4"
 
 [features]
 default = []
 local-transcription = ["candle-core"]
-input-simulation = ["enigo"]
 
 [[bin]]
 name = "waystt"

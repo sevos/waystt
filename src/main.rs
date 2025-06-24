@@ -9,10 +9,14 @@ mod audio;
 mod audio_processing;
 mod config;
 mod wav;
+mod whisper;
+mod clipboard;
 use audio::AudioRecorder;
 use audio_processing::AudioProcessor;
 use config::Config;
 use wav::WavEncoder;
+use whisper::WhisperClient;
+use clipboard::ClipboardManager;
 
 #[derive(Parser)]
 #[command(name = "waystt")]
@@ -29,6 +33,7 @@ async fn process_audio_for_transcription(
     audio_data: Vec<f32>,
     sample_rate: u32,
     action: &str,
+    config: &Config,
 ) -> Result<()> {
     println!("Processing audio for {}: {} samples", action, audio_data.len());
     
@@ -54,13 +59,111 @@ async fn process_audio_for_transcription(
                 Ok(wav_data) => {
                     println!("WAV encoded: {} bytes ready for transcription", wav_data.len());
                     
-                    // Here we would send to transcription service
-                    // For now, we'll just log the success
-                    println!("Audio ready for {} workflow", action);
+                    // Initialize Whisper client with configuration
+                    let api_key = config.openai_api_key.as_ref()
+                        .ok_or_else(|| anyhow::anyhow!("OPENAI_API_KEY not found in configuration. Please set it in your .env file."))?;
+                    let whisper_client = WhisperClient::new_with_options(
+                        api_key.clone(),
+                        Some(config.whisper_timeout_seconds),
+                        Some(config.whisper_max_retries),
+                        Some(config.whisper_model.clone()),
+                        None, // Use default base URL
+                    )?;
                     
-                    // Clean up processed data
-                    drop(wav_data);
-                    drop(processed_audio);
+                    // Send to OpenAI Whisper API for transcription
+                    println!("Sending audio to OpenAI Whisper API...");
+                    let language = if config.whisper_language == "auto" {
+                        None
+                    } else {
+                        Some(config.whisper_language.clone())
+                    };
+                    match whisper_client.transcribe_with_language(wav_data, language).await {
+                        Ok(transcribed_text) => {
+                            if transcribed_text.trim().is_empty() {
+                                println!("Warning: Received empty transcription from Whisper API");
+                                println!("This might indicate silent audio or unclear speech");
+                                return Ok(());
+                            }
+                            
+                            println!("Transcription successful: \"{}\"", transcribed_text);
+                            
+                            // Initialize clipboard manager
+                            let mut clipboard_manager = ClipboardManager::new()
+                                .map_err(|e| anyhow::anyhow!("Failed to initialize clipboard: {}", e))?;
+                            
+                            match action {
+                                "paste" => {
+                                    // SIGUSR1: Copy to clipboard (persistent) and paste
+                                    match clipboard_manager.copy_text_persistent(&transcribed_text) {
+                                        Ok(()) => {
+                                            println!("Text copied to persistent clipboard");
+                                            
+                                            // Small delay to ensure daemon starts up
+                                            tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+                                            
+                                            match clipboard_manager.paste_text() {
+                                                Ok(()) => {
+                                                    println!("Text pasted successfully!");
+                                                    println!("✅ Transcription complete: \"{}\"", transcribed_text);
+                                                }
+                                                Err(e) => {
+                                                    println!("❌ Failed to paste text: {}", e);
+                                                    println!("💡 Text remains in clipboard - paste manually with Ctrl+V");
+                                                    println!("💡 Setup instructions: {}", ClipboardManager::get_setup_instructions());
+                                                }
+                                            }
+                                        }
+                                        Err(e) => {
+                                            eprintln!("❌ Failed to copy to clipboard: {}", e);
+                                            eprintln!("💡 Setup instructions: {}", ClipboardManager::get_setup_instructions());
+                                            return Err(anyhow::anyhow!("Clipboard operation failed: {}", e));
+                                        }
+                                    }
+                                }
+                                "copy" => {
+                                    // SIGUSR2: Copy to clipboard only (with persistence)
+                                    match clipboard_manager.copy_text_persistent(&transcribed_text) {
+                                        Ok(()) => {
+                                            println!("✅ Text copied to persistent clipboard: \"{}\"", transcribed_text);
+                                            println!("💡 Paste manually with Ctrl+V when ready");
+                                            println!("💡 Clipboard data will persist after app exits");
+                                        }
+                                        Err(e) => {
+                                            eprintln!("❌ Failed to copy to clipboard: {}", e);
+                                            eprintln!("💡 Setup instructions: {}", ClipboardManager::get_setup_instructions());
+                                            return Err(anyhow::anyhow!("Clipboard operation failed: {}", e));
+                                        }
+                                    }
+                                }
+                                _ => {
+                                    println!("❌ Unknown action: {}", action);
+                                    println!("Transcribed text: \"{}\"", transcribed_text);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("❌ Transcription failed: {}", e);
+                            
+                            // Provide helpful error messages
+                            match e {
+                                whisper::WhisperError::AuthenticationFailed => {
+                                    eprintln!("💡 Check your OPENAI_API_KEY in the .env file");
+                                }
+                                whisper::WhisperError::NetworkError(_) => {
+                                    eprintln!("💡 Check your internet connection");
+                                }
+                                whisper::WhisperError::FileTooLarge(size) => {
+                                    eprintln!("💡 Audio file too large: {} bytes (max 25MB)", size);
+                                    eprintln!("💡 Try recording shorter clips");
+                                }
+                                _ => {
+                                    eprintln!("💡 Please check your configuration and try again");
+                                }
+                            }
+                            
+                            return Err(anyhow::anyhow!("Transcription failed: {}", e));
+                        }
+                    }
                     
                     Ok(())
                 }
@@ -162,7 +265,8 @@ async fn main() -> Result<()> {
                                 if let Err(e) = process_audio_for_transcription(
                                     audio_data, 
                                     16000, // Using fixed sample rate from audio module
-                                    "transcribe and paste"
+                                    "paste",
+                                    &config
                                 ).await {
                                     eprintln!("Audio processing failed: {}", e);
                                 }
@@ -197,7 +301,8 @@ async fn main() -> Result<()> {
                                 if let Err(e) = process_audio_for_transcription(
                                     audio_data, 
                                     16000, // Using fixed sample rate from audio module
-                                    "transcribe and copy"
+                                    "copy",
+                                    &config
                                 ).await {
                                     eprintln!("Audio processing failed: {}", e);
                                 }
@@ -263,22 +368,25 @@ mod tests {
         test_audio.extend(vec![0.2; window_size * 20]); // 200ms of speech
         test_audio.extend(vec![0.0; window_size]); // Trailing silence
         
-        // Test the complete processing pipeline
-        let result = process_audio_for_transcription(
-            test_audio.clone(),
-            sample_rate,
-            "test"
-        ).await;
+        // Test only the audio processing part, not the API call
+        // Since we don't have an API key in tests, we'll just test up to WAV encoding
+        let processor = AudioProcessor::new(sample_rate);
+        let processed = processor.process_for_speech_recognition(&test_audio);
+        assert!(processed.is_ok(), "Audio processing should succeed");
         
-        assert!(result.is_ok(), "Audio processing pipeline should succeed with valid audio");
+        let encoder = WavEncoder::new(sample_rate, 1);
+        let wav_result = encoder.encode_to_wav(&processed.unwrap());
+        assert!(wav_result.is_ok(), "WAV encoding should succeed with valid audio");
     }
 
     #[tokio::test]
     async fn test_audio_processing_pipeline_empty_audio() {
+        let test_config = Config::default();
         let result = process_audio_for_transcription(
             vec![],
             16000,
-            "test"
+            "test",
+            &test_config
         ).await;
         
         assert!(result.is_err(), "Audio processing should fail with empty audio");
@@ -289,10 +397,12 @@ mod tests {
         // Audio that's too short (less than 0.1 seconds)
         let short_audio = vec![0.5; 160]; // 0.01 seconds at 16kHz
         
+        let test_config = Config::default();
         let result = process_audio_for_transcription(
             short_audio,
             16000,
-            "test"
+            "test",
+            &test_config
         ).await;
         
         assert!(result.is_err(), "Audio processing should fail with too short audio");
@@ -303,10 +413,12 @@ mod tests {
         // Audio with only silence
         let silent_audio = vec![0.0; 1600]; // 0.1 seconds of silence
         
+        let test_config = Config::default();
         let result = process_audio_for_transcription(
             silent_audio,
             16000,
-            "test"
+            "test",
+            &test_config
         ).await;
         
         assert!(result.is_err(), "Audio processing should fail with only silence");

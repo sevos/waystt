@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
-    Device, Host, Stream, StreamConfig,
+    Device, Stream, StreamConfig,
 };
 
 const SAMPLE_RATE: u32 = 16000;
@@ -44,7 +44,7 @@ impl AudioRecorder {
 
         // Get supported input config close to our target format
         let mut supported_configs = device.supported_input_configs()?;
-        let supported_config = supported_configs
+        let _supported_config = supported_configs
             .find(|config| {
                 config.channels() <= CHANNELS && 
                 config.min_sample_rate().0 <= SAMPLE_RATE && 

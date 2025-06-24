@@ -2,12 +2,50 @@ use anyhow::Result;
 use signal_hook::consts::{SIGTERM, SIGUSR1, SIGUSR2};
 use signal_hook_tokio::Signals;
 use futures::stream::StreamExt;
+use clap::Parser;
+use std::path::PathBuf;
 
 mod audio;
+mod config;
 use audio::AudioRecorder;
+use config::Config;
+
+#[derive(Parser)]
+#[command(name = "waystt")]
+#[command(about = "Wayland Speech-to-Text Tool - Signal-driven transcription")]
+#[command(version)]
+struct Args {
+    /// Path to environment file
+    #[arg(long, default_value = "./.env")]
+    envfile: PathBuf,
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let args = Args::parse();
+    
+    // Load configuration from environment file or system environment
+    let config = if args.envfile.exists() {
+        println!("Loading environment from: {}", args.envfile.display());
+        match Config::load_env_file(&args.envfile) {
+            Ok(config) => config,
+            Err(e) => {
+                eprintln!("Warning: Failed to load environment file {}: {}", args.envfile.display(), e);
+                println!("Falling back to system environment");
+                Config::from_env()
+            }
+        }
+    } else {
+        println!("Environment file {} not found, using system environment", args.envfile.display());
+        Config::from_env()
+    };
+    
+    // Validate configuration (but don't fail if API key missing, as we're just recording for now)
+    if let Err(e) = config.validate() {
+        eprintln!("Configuration warning: {}", e);
+        eprintln!("Note: This is expected during development phase before transcription is implemented");
+    }
+    
     println!("waystt - Wayland Speech-to-Text Tool");
     println!("Starting audio recording...");
     

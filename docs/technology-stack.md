@@ -102,11 +102,20 @@ async fn inject_text(text: &str) -> Result<()> {
 
 ## Configuration Management
 
-### Minimal Configuration
-**Format**: Environment variables only (no config files)
-**Variables**: OpenAI API key, buffer duration, audio device selection, local model choice
+### Environment-Based Configuration
+**Format**: `.env` file support with CLI override
+**Implementation**: 
+- **dotenvy**: Load environment variables from `.env` files
+- **clap**: Command line argument parsing with `--envfile` parameter
+- **Default**: `./.env` file, fallback to system environment
 
-**Rationale**: Zero-config operation with sensible defaults
+**Variables**: 
+- `OPENAI_API_KEY`: Required for transcription
+- `AUDIO_BUFFER_DURATION_SECONDS`: Buffer size limit
+- `WHISPER_MODEL`: Model selection
+- `RUST_LOG`: Logging configuration
+
+**Rationale**: Simple configuration with secure API key management
 
 ## Dependency Minimization Strategy
 
@@ -117,6 +126,8 @@ async fn inject_text(text: &str) -> Result<()> {
 - **wl-clipboard-rs**: Wayland clipboard integration
 - **tokio**: Async runtime
 - **anyhow**: Error handling
+- **clap**: Command line argument parsing
+- **dotenvy**: Environment file loading
 
 ### Optional Dependencies (Features)
 - **candle-whisper**: Local transcription support

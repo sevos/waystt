@@ -10,6 +10,8 @@ pub struct Config {
     pub audio_channels: u16,
     pub whisper_model: String,
     pub whisper_language: String,
+    pub whisper_timeout_seconds: u64,
+    pub whisper_max_retries: u32,
     pub rust_log: String,
 }
 
@@ -22,6 +24,8 @@ impl Default for Config {
             audio_channels: 1,                  // Mono
             whisper_model: "whisper-1".to_string(),
             whisper_language: "auto".to_string(),
+            whisper_timeout_seconds: 60,
+            whisper_max_retries: 3,
             rust_log: "info".to_string(),
         }
     }
@@ -61,6 +65,18 @@ impl Config {
 
         if let Ok(language) = std::env::var("WHISPER_LANGUAGE") {
             config.whisper_language = language;
+        }
+
+        if let Ok(timeout) = std::env::var("WHISPER_TIMEOUT_SECONDS") {
+            if let Ok(parsed) = timeout.parse::<u64>() {
+                config.whisper_timeout_seconds = parsed;
+            }
+        }
+
+        if let Ok(retries) = std::env::var("WHISPER_MAX_RETRIES") {
+            if let Ok(parsed) = retries.parse::<u32>() {
+                config.whisper_max_retries = parsed;
+            }
         }
 
         // Load logging configuration
@@ -108,7 +124,11 @@ mod tests {
     use super::*;
     use std::env;
     use std::io::Write;
+    use std::sync::Mutex;
     use tempfile::NamedTempFile;
+    
+    // Mutex to ensure tests that modify environment variables run sequentially
+    static ENV_MUTEX: Mutex<()> = Mutex::new(());
 
     // Helper function to clear all waystt environment variables
     fn clear_env_vars() {
@@ -118,6 +138,8 @@ mod tests {
         env::remove_var("AUDIO_CHANNELS");
         env::remove_var("WHISPER_MODEL");
         env::remove_var("WHISPER_LANGUAGE");
+        env::remove_var("WHISPER_TIMEOUT_SECONDS");
+        env::remove_var("WHISPER_MAX_RETRIES");
         env::remove_var("RUST_LOG");
     }
 
@@ -135,6 +157,9 @@ mod tests {
 
     #[test]
     fn test_config_from_env_defaults() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        
+        // Clear all environment variables first
         clear_env_vars();
 
         let config = Config::from_env();
@@ -144,11 +169,19 @@ mod tests {
         assert_eq!(config.audio_channels, 1);
         assert_eq!(config.whisper_model, "whisper-1");
         assert_eq!(config.whisper_language, "auto");
+        assert_eq!(config.whisper_timeout_seconds, 60);
+        assert_eq!(config.whisper_max_retries, 3);
         assert_eq!(config.rust_log, "info");
+        
+        // Clean up after test
+        clear_env_vars();
     }
 
     #[test]
     fn test_config_from_env_variables() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        
+        // Clear environment variables first to ensure clean state
         clear_env_vars();
         
         // Set environment variables
@@ -158,6 +191,8 @@ mod tests {
         env::set_var("AUDIO_CHANNELS", "2");
         env::set_var("WHISPER_MODEL", "whisper-large");
         env::set_var("WHISPER_LANGUAGE", "en");
+        env::set_var("WHISPER_TIMEOUT_SECONDS", "120");
+        env::set_var("WHISPER_MAX_RETRIES", "5");
         env::set_var("RUST_LOG", "debug");
 
         let config = Config::from_env();
@@ -167,19 +202,27 @@ mod tests {
         assert_eq!(config.audio_channels, 2);
         assert_eq!(config.whisper_model, "whisper-large");
         assert_eq!(config.whisper_language, "en");
+        assert_eq!(config.whisper_timeout_seconds, 120);
+        assert_eq!(config.whisper_max_retries, 5);
         assert_eq!(config.rust_log, "debug");
 
+        // Clean up after test
         clear_env_vars();
     }
 
     #[test]
     fn test_config_from_env_invalid_numbers() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        
+        // Clear at the start
         clear_env_vars();
         
         // Set invalid numeric values
         env::set_var("AUDIO_BUFFER_DURATION_SECONDS", "invalid");
         env::set_var("AUDIO_SAMPLE_RATE", "not-a-number");
         env::set_var("AUDIO_CHANNELS", "bad");
+        env::set_var("WHISPER_TIMEOUT_SECONDS", "invalid");
+        env::set_var("WHISPER_MAX_RETRIES", "bad");
 
         let config = Config::from_env();
         
@@ -187,12 +230,16 @@ mod tests {
         assert_eq!(config.audio_buffer_duration_seconds, 300);
         assert_eq!(config.audio_sample_rate, 16000);
         assert_eq!(config.audio_channels, 1);
+        assert_eq!(config.whisper_timeout_seconds, 60);
+        assert_eq!(config.whisper_max_retries, 3);
 
         clear_env_vars();
     }
 
     #[test]
     fn test_load_env_file() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        
         clear_env_vars();
         
         // Create a temporary .env file

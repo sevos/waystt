@@ -22,17 +22,17 @@ This document outlines the technology choices for **waystt**, a signal-driven sp
 
 ## Audio Pipeline
 
-### Audio Capture: PipeWire (Native)
-**Crate**: `pipewire-rs` or direct FFI bindings
+### Audio Capture: CPAL (Cross-Platform)
+**Crate**: `cpal`
 **Features**:
-- Low-latency audio capture
-- Automatic device discovery
-- Native integration with modern Linux audio stack
-- Session management and device switching
+- Cross-platform audio capture (works with PipeWire, ALSA, PulseAudio)
+- Automatic device discovery and format negotiation
+- Low-latency audio capture with reliable stream management
+- Native integration with Linux audio stack via multiple backends
 
-**Configuration**: Audio settings optimized for Whisper API (16kHz mono, low latency)
+**Configuration**: Audio settings optimized for Whisper API (16kHz mono, f32 samples)
 
-**Fallback Strategy**: PulseAudio via `libpulse-simple-binding` if PipeWire unavailable
+**Backend Support**: Automatically uses best available backend (PipeWire → ALSA → PulseAudio)
 
 ### Audio Processing: Minimal Native
 **No external audio libraries needed**:
@@ -111,7 +111,7 @@ async fn inject_text(text: &str) -> Result<()> {
 ## Dependency Minimization Strategy
 
 ### Core Dependencies (Essential)
-- **pipewire**: Native audio capture
+- **cpal**: Cross-platform audio capture
 - **reqwest**: HTTP client with multipart support
 - **signal-hook-tokio**: Async signal handling
 - **wl-clipboard-rs**: Wayland clipboard integration

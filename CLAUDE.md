@@ -4,35 +4,6 @@ waystt is a Wayland speech-to-text tool with dual output modes:
 - **SIGUSR1**: Direct text typing via ydotool (immediate insertion at cursor)
 - **SIGUSR2**: Clipboard copy with persistent daemon for manual pasting
 
-## Installation and Configuration
-
-### Installation
-Install the binary to your local bin directory:
-```bash
-cargo build --release
-mkdir -p ~/.local/bin
-cp ./target/release/waystt ~/.local/bin/
-```
-
-Ensure `~/.local/bin` is in your PATH:
-```bash
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
-source ~/.bashrc
-```
-
-### Configuration Setup
-Create your configuration directory and file:
-```bash
-mkdir -p ~/.config/waystt
-cp .env.example ~/.config/waystt/.env
-```
-
-Edit `~/.config/waystt/.env` with your settings:
-- `OPENAI_API_KEY=sk-your-key` - Required for transcription
-- `ENABLE_AUDIO_FEEDBACK=true/false` - Enable/disable beeps
-- `BEEP_VOLUME=0.0-1.0` - Volume control (default: 0.1)
-- Other optional settings (see `.env.example` for full list)
-
 ## Audio Feedback System
 
 The app provides musical beep patterns for user feedback:
@@ -41,11 +12,15 @@ The app provides musical beep patterns for user feedback:
 - **Success**: "Ding ding" (E4 → E4) - plays after successful typing/clipboard operation
 - **Error**: Warbling tone for failures
 
+Configuration:
+- `ENABLE_AUDIO_FEEDBACK=true/false` - Enable/disable beeps
+- `BEEP_VOLUME=0.0-1.0` - Volume control (default: 0.1)
+
 ## QA Testing Workflow
 
 - For QAing, run the app with `nohup` and `&` to properly detach from terminal:
   ```bash
-  cd ~/.config/waystt && nohup ~/.local/bin/waystt > /tmp/waystt.log 2>&1 & disown
+  nohup ./target/release/waystt > /tmp/waystt.log 2>&1 & disown
   ```
 - Then:
   - Listen for "ding dong" sound confirming recording started
@@ -87,13 +62,11 @@ For proper process detection in keybindings, use `pgrep -x waystt` to avoid matc
 
 ```bash
 # Direct typing mode (SIGUSR1)
-bindkey "Super+R" "pgrep -x waystt >/dev/null && pkill -USR1 waystt || (cd ~/.config/waystt && ~/.local/bin/waystt &)"
+bindkey "Super+R" "pgrep -x waystt >/dev/null && pkill -USR1 waystt || waystt &"
 
 # Clipboard mode (SIGUSR2)  
-bindkey "Super+Shift+R" "pgrep -x waystt >/dev/null && pkill -USR2 waystt || (cd ~/.config/waystt && ~/.local/bin/waystt &)"
+bindkey "Super+Shift+R" "pgrep -x waystt >/dev/null && pkill -USR2 waystt || waystt &"
 ```
-
-The `cd ~/.config/waystt` ensures the application finds your `.env` configuration file, while `~/.local/bin/waystt` points to the installed binary.
 
 The clipboard daemon renames itself to `waystt-clipboard-daemon` to prevent interference with main process detection.
 

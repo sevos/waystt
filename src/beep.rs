@@ -186,10 +186,10 @@ impl BeepPlayer {
     /// Get frequency and duration parameters for different beep types
     fn get_beep_params(beep_type: BeepType) -> (f32, f32) {
         match beep_type {
-            BeepType::RecordingStart => (400.0, 500.0),    // 400Hz, 500ms (half a second)
-            BeepType::RecordingStop => (300.0, 500.0),     // 300Hz, 500ms (half a second)
-            BeepType::Success => (800.0, 250.0),           // 800Hz, 250ms (includes gap)
-            BeepType::Error => (200.0, 300.0),             // 200Hz, 300ms
+            BeepType::RecordingStart => (261.63, 500.0),   // C major (C4), 500ms total for "ding dong"
+            BeepType::RecordingStop => (329.63, 500.0),    // E major (E4), 500ms total for "dong ding"  
+            BeepType::Success => (329.63, 400.0),          // E major (E4), 400ms total for "ding ding"
+            BeepType::Error => (200.0, 300.0),             // 200Hz, 300ms (unchanged)
         }
     }
 
@@ -283,28 +283,45 @@ impl BeepPlayer {
 
     /// Get frequency at a specific sample for different beep effects
     fn get_frequency_at_sample(sample_index: usize, total_samples: usize, base_frequency: f32, beep_type: BeepType) -> f32 {
+        const C4: f32 = 261.63;  // C major (C4)
+        const E4: f32 = 329.63;  // E major (E4)
+        
         match beep_type {
             BeepType::RecordingStart => {
-                // Ascending tone: 400Hz to 500Hz
+                // "Ding dong": C major then E major (low to high)
                 let progress = sample_index as f32 / total_samples as f32;
-                base_frequency + (100.0 * progress)
+                if progress < 0.45 {
+                    C4  // First beep: C major
+                } else if progress < 0.55 {
+                    0.0 // Short gap between beeps
+                } else {
+                    E4  // Second beep: E major
+                }
             }
             BeepType::RecordingStop => {
-                // Descending tone: 400Hz to 200Hz
+                // "Dong ding": E major then C major (high to low) - symmetrical
                 let progress = sample_index as f32 / total_samples as f32;
-                base_frequency + (100.0 * (1.0 - progress))
+                if progress < 0.45 {
+                    E4  // First beep: E major
+                } else if progress < 0.55 {
+                    0.0 // Short gap between beeps
+                } else {
+                    C4  // Second beep: C major
+                }
             }
             BeepType::Success => {
-                // Double beep: two 100ms beeps with 50ms gap
+                // "Ding ding": Double E major beeps
                 let progress = sample_index as f32 / total_samples as f32;
-                if progress < 0.4 || (progress > 0.6 && progress < 1.0) {
-                    base_frequency // 800Hz during beep portions
+                if progress < 0.4 {
+                    E4  // First ding: E major
+                } else if progress < 0.6 {
+                    0.0 // Gap between dings
                 } else {
-                    0.0 // Silence during gap
+                    E4  // Second ding: E major
                 }
             }
             BeepType::Error => {
-                // Warbling tone: oscillate between 180Hz and 220Hz
+                // Warbling tone: oscillate between 180Hz and 220Hz (unchanged)
                 let wobble = (sample_index as f32 * 8.0 / total_samples as f32 * 2.0 * std::f32::consts::PI).sin();
                 base_frequency + (20.0 * wobble)
             }
@@ -492,10 +509,10 @@ mod tests {
     fn test_beep_params() {
         // Test that beep parameters are reasonable
         let params = [
-            (BeepType::RecordingStart, 400.0, 500.0),
-            (BeepType::RecordingStop, 300.0, 500.0),
-            (BeepType::Success, 800.0, 250.0),
-            (BeepType::Error, 200.0, 300.0),
+            (BeepType::RecordingStart, 261.63, 500.0),  // C major (C4)
+            (BeepType::RecordingStop, 329.63, 500.0),   // E major (E4)
+            (BeepType::Success, 329.63, 400.0),         // E major (E4)
+            (BeepType::Error, 200.0, 300.0),            // Unchanged
         ];
         
         for (beep_type, expected_freq, expected_duration) in params {
@@ -518,19 +535,27 @@ mod tests {
     fn test_frequency_at_sample() {
         // Test frequency calculation for different beep types
         let total_samples = 1000;
+        const C4: f32 = 261.63;  // C major (C4)
+        const E4: f32 = 329.63;  // E major (E4)
         
-        // Test recording start (ascending)
-        let start_freq = BeepPlayer::get_frequency_at_sample(0, total_samples, 400.0, BeepType::RecordingStart);
-        let end_freq = BeepPlayer::get_frequency_at_sample(total_samples - 1, total_samples, 400.0, BeepType::RecordingStart);
-        assert!(end_freq > start_freq, "Recording start should have ascending frequency");
+        // Test recording start: C major then E major (ding dong)
+        let start_freq = BeepPlayer::get_frequency_at_sample(0, total_samples, C4, BeepType::RecordingStart);
+        let end_freq = BeepPlayer::get_frequency_at_sample(total_samples - 1, total_samples, C4, BeepType::RecordingStart);
+        assert_eq!(start_freq, C4, "Recording start should begin with C major");
+        assert_eq!(end_freq, E4, "Recording start should end with E major");
         
-        // Test recording stop (descending)
-        let start_freq = BeepPlayer::get_frequency_at_sample(0, total_samples, 400.0, BeepType::RecordingStop);
-        let end_freq = BeepPlayer::get_frequency_at_sample(total_samples - 1, total_samples, 400.0, BeepType::RecordingStop);
-        assert!(start_freq > end_freq, "Recording stop should have descending frequency");
+        // Test recording stop: E major then C major (dong ding - symmetrical)
+        let start_freq = BeepPlayer::get_frequency_at_sample(0, total_samples, E4, BeepType::RecordingStop);
+        let end_freq = BeepPlayer::get_frequency_at_sample(total_samples - 1, total_samples, E4, BeepType::RecordingStop);
+        assert_eq!(start_freq, E4, "Recording stop should begin with E major");
+        assert_eq!(end_freq, C4, "Recording stop should end with C major");
         
-        // Test success (should have gaps)
-        let gap_freq = BeepPlayer::get_frequency_at_sample(total_samples / 2, total_samples, 800.0, BeepType::Success);
-        assert_eq!(gap_freq, 0.0, "Success beep should have silence in the middle");
+        // Test success: Double E major (ding ding)
+        let first_beep = BeepPlayer::get_frequency_at_sample(100, total_samples, E4, BeepType::Success);
+        let gap_freq = BeepPlayer::get_frequency_at_sample(total_samples / 2, total_samples, E4, BeepType::Success);
+        let second_beep = BeepPlayer::get_frequency_at_sample(total_samples - 100, total_samples, E4, BeepType::Success);
+        assert_eq!(first_beep, E4, "Success first beep should be E major");
+        assert_eq!(gap_freq, 0.0, "Success should have silence in the middle");
+        assert_eq!(second_beep, E4, "Success second beep should be E major");
     }
 }

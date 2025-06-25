@@ -275,25 +275,6 @@ impl ClipboardManager {
         format!("Available paste tools: {}", paste_tools.join(", "))
     }
     
-    // Verify that the clipboard contains the expected text
-    fn verify_clipboard_content(&self, expected_text: &str) -> Result<bool, ClipboardError> {
-        // Add a small delay to ensure clipboard operation has completed
-        std::thread::sleep(std::time::Duration::from_millis(200));
-        
-        match self.get_clipboard_text() {
-            Ok(clipboard_content) => {
-                let matches = clipboard_content.trim() == expected_text.trim();
-                if !matches {
-                    eprintln!("Clipboard verification failed:");
-                    eprintln!("  Expected: '{}'", expected_text);
-                    eprintln!("  Got:      '{}'", clipboard_content);
-                }
-                Ok(matches)
-            }
-            Err(e) => Err(e),
-        }
-    }
-    
     // Utility method to get clipboard contents (for testing)
     #[allow(dead_code)]
     pub fn get_clipboard_text(&self) -> Result<String, ClipboardError> {

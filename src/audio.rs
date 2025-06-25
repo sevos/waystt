@@ -133,23 +133,12 @@ impl AudioRecorder {
         Ok(())
     }
 
-    pub fn buffer_size(&self) -> Result<usize> {
-        let buffer = self.buffer.lock().map_err(|_| anyhow!("Failed to lock buffer"))?;
-        Ok(buffer.len())
-    }
-
-    pub fn is_recording(&self) -> bool {
-        self.is_recording.load(Ordering::Relaxed)
-    }
 
     pub fn get_recording_duration_seconds(&self) -> Result<f32> {
         let buffer = self.buffer.lock().map_err(|_| anyhow!("Failed to lock buffer"))?;
         Ok(buffer.len() as f32 / SAMPLE_RATE as f32)
     }
 
-    pub fn get_max_recording_duration_seconds(&self) -> usize {
-        MAX_RECORDING_DURATION_SECONDS
-    }
 
     // Method to process audio events (for compatibility with main loop)
     pub fn process_audio_events(&self) -> Result<()> {
@@ -158,10 +147,6 @@ impl AudioRecorder {
         Ok(())
     }
 
-    // Helper method for testing and integration
-    pub fn run_mainloop_iteration(&self) -> Result<()> {
-        self.process_audio_events()
-    }
 }
 
 impl Drop for AudioRecorder {
@@ -184,8 +169,8 @@ mod tests {
     #[test]
     fn test_initial_state() {
         let recorder = AudioRecorder::new().unwrap();
-        assert_eq!(recorder.buffer_size().unwrap(), 0);
-        assert!(!recorder.is_recording());
+        let buffer_data = recorder.get_audio_data().unwrap();
+        assert_eq!(buffer_data.len(), 0);
     }
 
     #[test]
@@ -193,11 +178,13 @@ mod tests {
         let recorder = AudioRecorder::new().unwrap();
         
         // Initially empty
-        assert_eq!(recorder.buffer_size().unwrap(), 0);
+        let data = recorder.get_audio_data().unwrap();
+        assert_eq!(data.len(), 0);
         
         // Clear empty buffer should work
         assert!(recorder.clear_buffer().is_ok());
-        assert_eq!(recorder.buffer_size().unwrap(), 0);
+        let data = recorder.get_audio_data().unwrap();
+        assert_eq!(data.len(), 0);
         
         // Get empty audio data
         let data = recorder.get_audio_data().unwrap();
@@ -208,13 +195,9 @@ mod tests {
     fn test_recording_lifecycle() {
         let mut recorder = AudioRecorder::new().unwrap();
         
-        // Should not be recording initially
-        assert!(!recorder.is_recording());
-        
         // Multiple stop calls should not fail
         assert!(recorder.stop_recording().is_ok());
         assert!(recorder.stop_recording().is_ok());
-        assert!(!recorder.is_recording());
     }
 
     #[test]
@@ -225,27 +208,23 @@ mod tests {
         // It may fail if no audio device is available
         match recorder.start_recording() {
             Ok(()) => {
-                assert!(recorder.is_recording());
-                
                 // Let CPAL capture some data
                 std::thread::sleep(Duration::from_millis(100));
                 
-                // Run a few iterations to ensure compatibility
+                // Test audio event processing
                 for _ in 0..10 {
-                    let _ = recorder.run_mainloop_iteration();
+                    let _ = recorder.process_audio_events();
                     std::thread::sleep(Duration::from_millis(10));
                 }
                 
                 // Stop recording
                 assert!(recorder.stop_recording().is_ok());
-                assert!(!recorder.is_recording());
                 
                 println!("CPAL recording test completed successfully");
             }
             Err(e) => {
                 // No audio device available - acceptable in test environments
                 println!("CPAL recording test skipped: {}", e);
-                assert!(!recorder.is_recording());
             }
         }
     }
@@ -263,7 +242,8 @@ mod tests {
         let recorder = AudioRecorder::new().unwrap();
         
         // Test buffer operations
-        assert_eq!(recorder.buffer_size().unwrap(), 0);
+        let data = recorder.get_audio_data().unwrap();
+        assert_eq!(data.len(), 0);
         
         // Test duration calculation on empty buffer
         let duration = recorder.get_recording_duration_seconds().unwrap();
@@ -271,18 +251,20 @@ mod tests {
         
         // Clear empty buffer
         assert!(recorder.clear_buffer().is_ok());
-        assert_eq!(recorder.buffer_size().unwrap(), 0);
+        let data = recorder.get_audio_data().unwrap();
+        assert_eq!(data.len(), 0);
     }
 
     #[test]
     fn test_buffer_size_limit() {
         let recorder = AudioRecorder::new().unwrap();
         
-        // This test ensures we don't exceed memory limits
-        assert_eq!(recorder.get_max_recording_duration_seconds(), 300);
+        // Test that we can get recording duration (should be 0 for empty buffer)
+        assert_eq!(recorder.get_recording_duration_seconds().unwrap(), 0.0);
         
         // Test initial buffer size
-        assert_eq!(recorder.buffer_size().unwrap(), 0);
+        let data = recorder.get_audio_data().unwrap();
+        assert_eq!(data.len(), 0);
     }
 
     #[test]
@@ -291,7 +273,8 @@ mod tests {
         let recorder = AudioRecorder::new().unwrap();
         
         // Test buffer operations are thread-safe
-        assert_eq!(recorder.buffer_size().unwrap(), 0);
+        let data = recorder.get_audio_data().unwrap();
+        assert_eq!(data.len(), 0);
         
         // Test concurrent buffer reads
         let data1 = recorder.get_audio_data().unwrap();
@@ -306,6 +289,5 @@ mod tests {
         
         // Test that process_audio_events doesn't fail
         assert!(recorder.process_audio_events().is_ok());
-        assert!(recorder.run_mainloop_iteration().is_ok());
     }
 }

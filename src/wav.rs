@@ -85,10 +85,6 @@ impl WavEncoder {
         Ok(wav_data)
     }
 
-    /// Get the expected WAV file size for given number of samples
-    pub fn calculate_wav_size(&self, num_samples: usize) -> usize {
-        44 + (num_samples * 2) // 44-byte header + 2 bytes per 16-bit sample
-    }
 }
 
 impl Default for WavEncoder {
@@ -223,12 +219,18 @@ mod tests {
     }
 
     #[test]
-    fn test_calculate_wav_size() {
+    fn test_wav_size_calculation() {
+        // Test WAV size calculation manually since calculate_wav_size was removed
         let encoder = WavEncoder::default();
+        let samples = vec![0.1; 100];
         
-        assert_eq!(encoder.calculate_wav_size(0), 44);
-        assert_eq!(encoder.calculate_wav_size(100), 244); // 44 + 100*2
-        assert_eq!(encoder.calculate_wav_size(1000), 2044); // 44 + 1000*2
+        let wav_data = encoder.encode_to_wav(&samples).unwrap();
+        // WAV should be 44 bytes header + 100 samples * 2 bytes per sample = 244 bytes
+        assert_eq!(wav_data.len(), 244);
+        
+        // Test empty case - should fail gracefully
+        let empty_result = encoder.encode_to_wav(&[]);
+        assert!(empty_result.is_err()); // Empty buffer should be rejected
     }
 
     #[test]

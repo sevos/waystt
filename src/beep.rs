@@ -44,14 +44,6 @@ impl BeepPlayer {
         Ok(Self { config })
     }
 
-    /// Play a beep of the specified type
-    pub fn play(&self, beep_type: BeepType) -> Result<()> {
-        if !self.config.enabled {
-            return Ok(());
-        }
-
-        self.play_beep_sync(beep_type)
-    }
 
     /// Play a beep asynchronously (non-blocking)
     pub async fn play_async(&self, beep_type: BeepType) -> Result<()> {
@@ -68,10 +60,6 @@ impl BeepPlayer {
         Ok(())
     }
 
-    /// Internal synchronous beep implementation
-    fn play_beep_sync(&self, beep_type: BeepType) -> Result<()> {
-        Self::play_beep_internal(beep_type, self.config.volume)
-    }
 
     /// Internal beep generation using CPAL
     fn play_beep_internal(beep_type: BeepType, volume: f32) -> Result<()> {
@@ -196,6 +184,7 @@ impl BeepPlayer {
     }
 
     /// Fill audio buffer with f32 samples
+    #[allow(clippy::too_many_arguments)]
     fn fill_audio_buffer_f32(
         data: &mut [f32],
         sample_index: &mut usize,
@@ -241,6 +230,7 @@ impl BeepPlayer {
     }
 
     /// Fill audio buffer with i16 samples
+    #[allow(clippy::too_many_arguments)]
     fn fill_audio_buffer_i16(
         data: &mut [i16],
         sample_index: &mut usize,
@@ -351,15 +341,6 @@ impl BeepPlayer {
         }
     }
 
-    /// Get the configuration
-    pub fn config(&self) -> &BeepConfig {
-        &self.config
-    }
-
-    /// Update the configuration
-    pub fn set_config(&mut self, config: BeepConfig) {
-        self.config = config;
-    }
 }
 
 #[cfg(test)]
@@ -390,12 +371,12 @@ mod tests {
         assert!(player.is_ok());
 
         let player = player.unwrap();
-        assert_eq!(player.config().enabled, config.enabled);
-        assert_eq!(player.config().volume, config.volume);
+        assert_eq!(player.config.enabled, config.enabled);
+        assert_eq!(player.config.volume, config.volume);
     }
 
-    #[test]
-    fn test_beep_player_disabled_config() {
+    #[tokio::test]
+    async fn test_beep_player_disabled_config() {
         let config = BeepConfig {
             enabled: false,
             volume: 0.1,
@@ -403,7 +384,7 @@ mod tests {
         let player = BeepPlayer::new(config).unwrap();
 
         // Should return Ok(()) when disabled, not attempt to play
-        let result = player.play(BeepType::RecordingStart);
+        let result = player.play_async(BeepType::RecordingStart).await;
         assert!(result.is_ok());
     }
 
@@ -420,23 +401,6 @@ mod tests {
         assert!(result.is_ok());
     }
 
-    #[test]
-    fn test_beep_player_config_update() {
-        let initial_config = BeepConfig {
-            enabled: true,
-            volume: 0.1,
-        };
-        let mut player = BeepPlayer::new(initial_config).unwrap();
-
-        let new_config = BeepConfig {
-            enabled: false,
-            volume: 0.5,
-        };
-        player.set_config(new_config.clone());
-
-        assert_eq!(player.config().enabled, new_config.enabled);
-        assert_eq!(player.config().volume, new_config.volume);
-    }
 
     #[test]
     fn test_beep_types_equality() {
@@ -476,42 +440,10 @@ mod tests {
                 volume,
             };
             let player = BeepPlayer::new(config).unwrap();
-            assert_eq!(player.config().volume, volume);
+            assert_eq!(player.config.volume, volume);
         }
     }
 
-    #[test]
-    fn test_beep_player_play_all_types() {
-        let config = BeepConfig::default();
-        let player = BeepPlayer::new(config).unwrap();
-
-        // Test all beep types - these should not panic now that we've implemented them
-        // They might fail if no audio device is available, but that's expected in CI
-        let beep_types = vec![
-            BeepType::RecordingStart,
-            BeepType::RecordingStop,
-            BeepType::Success,
-            BeepType::Error,
-        ];
-
-        for beep_type in beep_types {
-            let result = player.play(beep_type);
-            // We don't assert success here because audio devices might not be available in test environments
-            // The important thing is that it doesn't panic
-            match result {
-                Ok(_) => {
-                    if !std::env::var("CI").is_ok() {
-                        println!("Beep {:?} played successfully", beep_type);
-                    }
-                }
-                Err(e) => {
-                    if !std::env::var("CI").is_ok() {
-                        println!("Beep {:?} failed (expected in test env): {}", beep_type, e);
-                    }
-                }
-            }
-        }
-    }
 
     #[tokio::test]
     async fn test_beep_player_play_async_all_types() {
@@ -531,12 +463,12 @@ mod tests {
             // We don't assert success here because audio devices might not be available in test environments
             match result {
                 Ok(_) => {
-                    if !std::env::var("CI").is_ok() {
+                    if std::env::var("CI").is_err() {
                         println!("Async beep {:?} played successfully", beep_type);
                     }
                 }
                 Err(e) => {
-                    if !std::env::var("CI").is_ok() {
+                    if std::env::var("CI").is_err() {
                         println!(
                             "Async beep {:?} failed (expected in test env): {}",
                             beep_type, e

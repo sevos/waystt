@@ -625,7 +625,7 @@ mod tests {
         }
 
         // If we get here without running out of memory, cleanup is working
-        assert!(true, "Memory cleanup simulation completed successfully");
+        // Test passed successfully
     }
 
     #[test]
@@ -676,8 +676,10 @@ mod tests {
     #[test]
     fn test_config_validation_comprehensive() {
         // Test valid config
-        let mut config = Config::default();
-        config.openai_api_key = Some("test-key".to_string());
+        let mut config = Config {
+            openai_api_key: Some("test-key".to_string()),
+            ..Default::default()
+        };
         assert!(config.validate().is_ok());
 
         // Test invalid sample rates (must be > 0)

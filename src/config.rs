@@ -300,8 +300,10 @@ mod tests {
 
     #[test]
     fn test_config_validation_success() {
-        let mut config = Config::default();
-        config.openai_api_key = Some("test-key".to_string());
+        let config = Config {
+            openai_api_key: Some("test-key".to_string()),
+            ..Default::default()
+        };
 
         assert!(config.validate().is_ok());
     }
@@ -320,9 +322,11 @@ mod tests {
 
     #[test]
     fn test_config_validation_invalid_duration() {
-        let mut config = Config::default();
-        config.openai_api_key = Some("test-key".to_string());
-        config.audio_buffer_duration_seconds = 0;
+        let config = Config {
+            openai_api_key: Some("test-key".to_string()),
+            audio_buffer_duration_seconds: 0,
+            ..Default::default()
+        };
 
         let result = config.validate();
         assert!(result.is_err());
@@ -334,9 +338,11 @@ mod tests {
 
     #[test]
     fn test_config_validation_invalid_sample_rate() {
-        let mut config = Config::default();
-        config.openai_api_key = Some("test-key".to_string());
-        config.audio_sample_rate = 0;
+        let config = Config {
+            openai_api_key: Some("test-key".to_string()),
+            audio_sample_rate: 0,
+            ..Default::default()
+        };
 
         let result = config.validate();
         assert!(result.is_err());
@@ -348,9 +354,11 @@ mod tests {
 
     #[test]
     fn test_config_validation_invalid_channels() {
-        let mut config = Config::default();
-        config.openai_api_key = Some("test-key".to_string());
-        config.audio_channels = 0;
+        let config = Config {
+            openai_api_key: Some("test-key".to_string()),
+            audio_channels: 0,
+            ..Default::default()
+        };
 
         let result = config.validate();
         assert!(result.is_err());
@@ -359,18 +367,23 @@ mod tests {
 
     #[test]
     fn test_config_validation_invalid_beep_volume() {
-        let mut config = Config::default();
-        config.openai_api_key = Some("test-key".to_string());
-
         // Test negative volume
-        config.beep_volume = -0.1;
+        let config = Config {
+            openai_api_key: Some("test-key".to_string()),
+            beep_volume: -0.1,
+            ..Default::default()
+        };
         let result = config.validate();
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("BEEP_VOLUME"));
 
         // Test volume > 1.0
-        config.beep_volume = 1.1;
-        let result = config.validate();
+        let config2 = Config {
+            openai_api_key: Some("test-key".to_string()),
+            beep_volume: 1.1,
+            ..Default::default()
+        };
+        let result = config2.validate();
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("BEEP_VOLUME"));
     }

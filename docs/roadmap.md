@@ -31,9 +31,9 @@ waystt [starts recording immediately]
 ### Phase 1: Core Tool (Week 1)
 **Priority: Critical - MVP**
 
-1. **Audio Recording Loop**
-   - PipeWire integration for continuous recording
-   - Circular buffer for audio data (configurable size)
+1. **Audio Recording Loop** ✅
+   - CPAL integration for cross-platform continuous recording
+   - Memory-managed buffer for audio data (5-minute max)
    - Signal handlers for USR1/USR2/TERM
 
 2. **Signal Processing**
@@ -96,7 +96,7 @@ Instead of slow character-by-character typing:
 - Automatic buffer cleanup after transcription
 
 ## Minimal Dependencies
-- **pipewire**: Native audio recording
+- **cpal**: Cross-platform audio recording (works with PipeWire, ALSA, etc.)
 - **reqwest**: HTTP client for OpenAI API
 - **wayland-client**: Window management and input simulation
 - **signal-hook**: Unix signal handling
@@ -108,16 +108,16 @@ Instead of slow character-by-character typing:
 # Single keybinding one-liners for compositor hotkeys:
 
 # Toggle recording and paste result (most common)
-bindkey "Super+R" "pgrep waystt >/dev/null && pkill -USR1 waystt || waystt &"
+bindkey "Super+R" "pgrep -x waystt >/dev/null && pkill -USR1 waystt || waystt &"
 
 # Toggle recording and copy result only  
-bindkey "Super+Shift+R" "pgrep waystt >/dev/null && pkill -USR2 waystt || waystt &"
+bindkey "Super+Shift+R" "pgrep -x waystt >/dev/null && pkill -USR2 waystt || waystt &"
 ```
 
 ## Technical Milestones
 
 ### v0.1.0 - MVP (End of Week 2)
-- [ ] Continuous audio recording via PipeWire
+- [x] Continuous audio recording via CPAL (cross-platform audio library)
 - [ ] Signal-based transcription with OpenAI Whisper
 - [ ] Clipboard + paste text injection
 - [ ] Basic error handling and logging

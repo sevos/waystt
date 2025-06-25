@@ -1,0 +1,58 @@
+[package]
+name = "waystt"
+version = "0.1.0"
+edition = "2021"
+description = "Signal-driven speech-to-text tool for Wayland"
+license = "MIT"
+authors = ["Your Name <your.email@example.com>"]
+
+[dependencies]
+# Core dependencies (essential)
+tokio = { version = "1.0", features = ["full"] }
+anyhow = "1.0"
+reqwest = { version = "0.12", features = ["multipart", "stream"] }
+signal-hook = "0.3"
+signal-hook-tokio = { version = "0.3", features = ["futures-v0_3"] }
+futures = "0.3"
+clap = { version = "4.0", features = ["derive"] }
+dotenvy = "0.15"
+
+# Audio capture
+cpal = "0.15"
+
+# Wayland clipboard integration
+wl-clipboard-rs = "0.8"
+
+# JSON serialization for API responses
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+thiserror = "1.0"
+
+# Process daemonization
+daemonize = "0.5"
+libc = "0.2"
+
+# Optional dependencies (features)
+candle-core = { version = "0.7", optional = true }
+
+[dev-dependencies]
+tempfile = "3.0"
+mockito = "1.0"
+tokio-test = "0.4"
+
+[features]
+default = []
+local-transcription = ["candle-core"]
+
+[[bin]]
+name = "waystt"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

@@ -1,0 +1,55 @@
+[build]
+# Enable incremental compilation for faster builds
+incremental = true
+
+# Uncomment to use lld linker for faster linking (requires lld installation)
+# [target.x86_64-unknown-linux-gnu]
+# linker = "clang"
+# rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+
+[net]
+# Use sparse registry for faster dependency resolution
+git-fetch-with-cli = true
+
+[registries.crates-io]
+protocol = "sparse"
+
+[profile.dev]
+# Optimize for compilation speed in debug builds
+opt-level = 0
+debug = true
+debug-assertions = true
+overflow-checks = true
+lto = false
+panic = 'unwind'
+incremental = true
+codegen-units = 256
+
+[profile.test]
+# Optimize test compilation
+opt-level = 1
+debug = true
+debug-assertions = true
+overflow-checks = true
+lto = false
+
+[profile.bench]
+# Optimize for benchmarks
+opt-level = 3
+debug = false
+debug-assertions = false
+overflow-checks = false
+lto = true
+panic = 'abort'
+codegen-units = 1
+
+# Already defined in Cargo.toml, but included here for reference
+# [profile.release]
+# opt-level = 3
+# debug = false
+# debug-assertions = false
+# overflow-checks = false
+# lto = true
+# panic = 'abort'
+# codegen-units = 1
+# strip = true

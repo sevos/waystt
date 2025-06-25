@@ -476,8 +476,16 @@ mod tests {
             // We don't assert success here because audio devices might not be available in test environments
             // The important thing is that it doesn't panic
             match result {
-                Ok(_) => println!("Beep {:?} played successfully", beep_type),
-                Err(e) => println!("Beep {:?} failed (expected in test env): {}", beep_type, e),
+                Ok(_) => {
+                    if !std::env::var("CI").is_ok() {
+                        println!("Beep {:?} played successfully", beep_type);
+                    }
+                },
+                Err(e) => {
+                    if !std::env::var("CI").is_ok() {
+                        println!("Beep {:?} failed (expected in test env): {}", beep_type, e);
+                    }
+                }
             }
         }
     }
@@ -499,8 +507,16 @@ mod tests {
             let result = player.play_async(beep_type).await;
             // We don't assert success here because audio devices might not be available in test environments
             match result {
-                Ok(_) => println!("Async beep {:?} played successfully", beep_type),
-                Err(e) => println!("Async beep {:?} failed (expected in test env): {}", beep_type, e),
+                Ok(_) => {
+                    if !std::env::var("CI").is_ok() {
+                        println!("Async beep {:?} played successfully", beep_type);
+                    }
+                },
+                Err(e) => {
+                    if !std::env::var("CI").is_ok() {
+                        println!("Async beep {:?} failed (expected in test env): {}", beep_type, e);
+                    }
+                }
             }
         }
     }

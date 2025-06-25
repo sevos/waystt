@@ -1,0 +1,53 @@
+name: Quick Check
+
+on:
+  push:
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    name: Quick Check
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt, clippy
+
+    - name: Cache cargo
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-check-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libasound2-dev \
+          pkg-config \
+          libpulse-dev
+
+    - name: Check formatting
+      run: cargo fmt --all -- --check
+
+    - name: Check compilation
+      run: cargo check --all-targets --all-features
+
+    - name: Clippy linting
+      run: cargo clippy --all-targets --all-features -- -D warnings -W clippy::pedantic
+
+    - name: Check for unused dependencies
+      run: |
+        cargo install cargo-machete
+        cargo machete

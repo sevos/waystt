@@ -52,15 +52,16 @@ export PATH="$HOME/.local/bin:$PATH"
 
 ## Quick Start
 
-1. **Setup API key:**
+1. **Setup configuration:**
 ```bash
-# Create config file
-echo "OPENAI_API_KEY=your_api_key_here" > ~/.config/waystt.env
+# Create config directory and file
+mkdir -p ~/.config/waystt
+echo "OPENAI_API_KEY=your_api_key_here" > ~/.config/waystt/.env
 ```
 
 2. **Start the service:**
 ```bash
-nohup waystt > /tmp/waystt.log 2>&1 & disown
+cd ~/.config/waystt && nohup ~/.local/bin/waystt > /tmp/waystt.log 2>&1 & disown
 ```
 
 3. **Use with signals:**
@@ -80,10 +81,10 @@ Add to your `~/.config/hypr/hyprland.conf`:
 
 ```bash
 # waystt - Speech to Text (direct typing)
-bind = SUPER, R, exec, pgrep -x waystt >/dev/null && pkill -USR1 waystt || ~/.local/bin/waystt &
+bind = SUPER, R, exec, pgrep -x waystt >/dev/null && pkill -USR1 waystt || (cd ~/.config/waystt && ~/.local/bin/waystt &)
 
 # waystt - Speech to Text (clipboard copy)  
-bind = SUPER SHIFT, R, exec, pgrep -x waystt >/dev/null && pkill -USR2 waystt || ~/.local/bin/waystt &
+bind = SUPER SHIFT, R, exec, pgrep -x waystt >/dev/null && pkill -USR2 waystt || (cd ~/.config/waystt && ~/.local/bin/waystt &)
 ```
 
 These keybindings will:
@@ -97,16 +98,16 @@ Add to your `~/.config/niri/config.kdl`:
 ```kdl
 binds {
     // waystt - Speech to Text (direct typing)
-    Mod+R { spawn "sh" "-c" "pgrep -x waystt >/dev/null && pkill -USR1 waystt || ~/.local/bin/waystt &"; }
+    Mod+R { spawn "sh" "-c" "pgrep -x waystt >/dev/null && pkill -USR1 waystt || (cd ~/.config/waystt && ~/.local/bin/waystt &)"; }
     
     // waystt - Speech to Text (clipboard copy)
-    Mod+Shift+R { spawn "sh" "-c" "pgrep -x waystt >/dev/null && pkill -USR2 waystt || ~/.local/bin/waystt &"; }
+    Mod+Shift+R { spawn "sh" "-c" "pgrep -x waystt >/dev/null && pkill -USR2 waystt || (cd ~/.config/waystt && ~/.local/bin/waystt &)"; }
 }
 ```
 
 ## Configuration
 
-**Required:** Create `~/.config/waystt.env` with your OpenAI API key:
+**Required:** Create `~/.config/waystt/.env` with your OpenAI API key:
 
 ```bash
 OPENAI_API_KEY=your_api_key_here
@@ -173,9 +174,17 @@ RUST_LOG=debug cargo run
 ```bash
 git clone https://github.com/sevos/waystt.git
 cd waystt
-echo "OPENAI_API_KEY=your_key" > .env
+cp .env.example .env
+# Edit .env with your API key
 cargo build --release
-./target/release/waystt
+
+# Install to local bin
+mkdir -p ~/.local/bin
+cp ./target/release/waystt ~/.local/bin/
+
+# Create config
+mkdir -p ~/.config/waystt
+cp .env ~/.config/waystt/
 ```
 
 ## License

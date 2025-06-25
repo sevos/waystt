@@ -69,11 +69,32 @@ sudo apt install rustc cargo pkg-config libasound2-dev
 
 ## Installation
 
+### Download Binary (Recommended)
+
+1. Download the latest release for x86_64 Linux from [GitHub Releases](https://github.com/sevos/waystt/releases)
+
+2. Install to your local bin directory:
+```bash
+# Download and install
+wget https://github.com/sevos/waystt/releases/download/v0.1.0/waystt-linux-x86_64
+mkdir -p ~/.local/bin
+mv waystt-linux-x86_64 ~/.local/bin/waystt
+chmod +x ~/.local/bin/waystt
+```
+
+3. Ensure `~/.local/bin` is in your PATH:
+```bash
+# Add to your shell profile (~/.bashrc, ~/.zshrc, etc.)
+export PATH="$HOME/.local/bin:$PATH"
+# Then reload your shell or run:
+source ~/.bashrc  # or ~/.zshrc
+```
+
 ### Building from Source
 
 1. Clone the repository:
 ```bash
-git clone <repository-url>
+git clone https://github.com/sevos/waystt.git
 cd waystt
 ```
 
@@ -100,6 +121,10 @@ cargo build --release
 
 Run waystt in the background:
 ```bash
+# If installed to ~/.local/bin
+nohup waystt > /tmp/waystt.log 2>&1 & disown
+
+# If built from source
 nohup ./target/release/waystt > /tmp/waystt.log 2>&1 & disown
 ```
 
@@ -134,10 +159,10 @@ Add to your `~/.config/hypr/hyprland.conf`:
 
 ```bash
 # waystt - Speech to Text (direct typing)
-bind = SUPER, R, exec, pgrep -x waystt >/dev/null && pkill -USR1 waystt || waystt &
+bind = SUPER, R, exec, pgrep -x waystt >/dev/null && pkill -USR1 waystt || ~/.local/bin/waystt &
 
 # waystt - Speech to Text (clipboard copy)  
-bind = SUPER SHIFT, R, exec, pgrep -x waystt >/dev/null && pkill -USR2 waystt || waystt &
+bind = SUPER SHIFT, R, exec, pgrep -x waystt >/dev/null && pkill -USR2 waystt || ~/.local/bin/waystt &
 ```
 
 These keybindings will:
@@ -151,10 +176,10 @@ Add to your `~/.config/niri/config.kdl`:
 ```kdl
 binds {
     // waystt - Speech to Text (direct typing)
-    Mod+R { spawn "sh" "-c" "pgrep -x waystt >/dev/null && pkill -USR1 waystt || waystt &"; }
+    Mod+R { spawn "sh" "-c" "pgrep -x waystt >/dev/null && pkill -USR1 waystt || ~/.local/bin/waystt &"; }
     
     // waystt - Speech to Text (clipboard copy)
-    Mod+Shift+R { spawn "sh" "-c" "pgrep -x waystt >/dev/null && pkill -USR2 waystt || waystt &"; }
+    Mod+Shift+R { spawn "sh" "-c" "pgrep -x waystt >/dev/null && pkill -USR2 waystt || ~/.local/bin/waystt &"; }
 }
 ```
 
@@ -265,4 +290,17 @@ RUST_LOG=debug cargo run
 
 ## License
 
-[Add your license information here]
+This project is licensed under the GNU General Public License v3.0 or later (GPL-3.0-or-later).
+
+**Source Code Availability**: As required by the GPL v3 license, the complete source code for this software is available at https://github.com/sevos/waystt. Anyone who distributes this software must also provide access to the corresponding source code.
+
+**License Summary**:
+- ✅ Commercial use allowed
+- ✅ Modification allowed
+- ✅ Distribution allowed
+- ✅ Private use allowed
+- ❗ **Copyleft**: Derivative works must also be GPL v3
+- ❗ **Source disclosure**: Must provide source code when distributing
+- ❗ **Same license**: Derivatives must use GPL v3 or compatible license
+
+For the full license text, see the [LICENSE](LICENSE) file.

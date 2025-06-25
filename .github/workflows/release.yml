@@ -1,48 +1,19 @@
 name: Release
 
+env:
+  CARGO_TERM_COLOR: always
+
 on:
   push:
     tags:
       - 'v*'
 
-env:
-  CARGO_TERM_COLOR: always
-
 jobs:
-  create_release:
-    name: Create Release
+  release:
+    name: Build and Release x86_64 Linux Binary
     runs-on: ubuntu-latest
-    outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
-    
-    steps:
-    - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
-        draft: false
-        prerelease: false
-
-  build_and_upload:
-    name: Build and Upload
-    needs: create_release
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            artifact_name: waystt
-            asset_name: waystt-linux-x86_64
-          - os: ubuntu-latest
-            target: aarch64-unknown-linux-gnu
-            artifact_name: waystt
-            asset_name: waystt-linux-aarch64
-    
-    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
     
     steps:
     - name: Checkout code
@@ -51,7 +22,7 @@ jobs:
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@stable
       with:
-        targets: ${{ matrix.target }}
+        targets: x86_64-unknown-linux-gnu
 
     - name: Install system dependencies
       run: |
@@ -64,25 +35,23 @@ jobs:
           libpipewire-0.3-dev \
           libspa-0.2-dev
 
-    - name: Install cross-compilation tools
-      if: matrix.target == 'aarch64-unknown-linux-gnu'
-      run: |
-        sudo apt-get install -y gcc-aarch64-linux-gnu
-        echo 'export CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc' >> $GITHUB_ENV
-        echo 'export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc' >> $GITHUB_ENV
-
     - name: Build release binary
-      run: cargo build --release --target ${{ matrix.target }}
+      run: cargo build --release --target x86_64-unknown-linux-gnu
 
     - name: Strip binary
-      run: strip target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
+      run: strip target/x86_64-unknown-linux-gnu/release/waystt
 
-    - name: Upload Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Create Release with Assets
+      uses: softprops/action-gh-release@v2
       with:
-        upload_url: ${{ needs.create_release.outputs.upload_url }}
-        asset_path: target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
-        asset_name: ${{ matrix.asset_name }}
-        asset_content_type: application/octet-stream
+        files: |
+          target/x86_64-unknown-linux-gnu/release/waystt
+          LICENSE
+          CHANGELOG.md
+        name: waystt v${{ github.ref_name }}
+        body_path: CHANGELOG.md
+        draft: false
+        prerelease: false
+        make_latest: true
+        fail_on_unmatched_files: true
+        generate_release_notes: true

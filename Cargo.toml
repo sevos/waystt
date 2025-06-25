@@ -2,9 +2,9 @@
 name = "waystt"
 version = "0.1.0"
 edition = "2021"
-description = "Signal-driven speech-to-text tool for Wayland"
+description = "Speech-to-text tool for Wayland"
 license = "GPL-3.0-or-later"
-authors = ["Your Name <your.email@example.com>"]
+authors = ["Artur Roszczyk <artur.roszczyk@gmail.com>"]
 
 [dependencies]
 # Core dependencies (essential)

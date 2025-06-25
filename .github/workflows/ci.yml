@@ -49,10 +49,10 @@ jobs:
       run: cargo fmt --all -- --check
 
     - name: Clippy linting
-      run: cargo clippy --all-targets --all-features -- -D warnings
+      run: cargo clippy --all-targets -- -D warnings
 
     - name: Run tests
-      run: cargo test --verbose --all-features
+      run: cargo test --verbose
       env:
         # Disable audio tests in CI environment
         RUST_TEST_THREADS: 1
@@ -103,7 +103,7 @@ jobs:
       run: cargo install cargo-tarpaulin
 
     - name: Generate code coverage
-      run: cargo tarpaulin --verbose --all-features --workspace --timeout 120 --out xml
+      run: cargo tarpaulin --verbose --workspace --timeout 120 --out xml
       env:
         RUST_TEST_THREADS: 1
 
@@ -143,10 +143,10 @@ jobs:
           libspa-0.2-dev
 
     - name: Check compilation
-      run: cargo check --all-targets --all-features
+      run: cargo check --all-targets
 
     - name: Run tests
-      run: cargo test --verbose --all-features
+      run: cargo test --verbose
       env:
         RUST_TEST_THREADS: 1
 

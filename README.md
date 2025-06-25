@@ -4,29 +4,50 @@ A signal-driven speech-to-text application for Wayland environments that records
 
 ## Features
 
-- Continuous audio recording with signal-triggered transcription
-- OpenAI Whisper API integration for high-quality speech recognition
-- Persistent clipboard integration for Wayland
-- Optimized for Wayland compositors (Hyprland, Niri, etc.)
+- **Continuous Audio Recording**: Background recording with signal-triggered transcription
+- **OpenAI Whisper Integration**: High-quality speech recognition using Whisper API
+- **Dual Output Modes**: 
+  - Direct text typing via ydotool (SIGUSR1)
+  - Clipboard copy for manual pasting (SIGUSR2)
+- **Musical Audio Feedback**: Pleasant beep patterns for user notifications
+  - Recording start: "Ding dong" (C4 → E4)
+  - Recording stop: "Dong ding" (E4 → C4) 
+  - Success: "Ding ding" (E4 → E4)
+  - Error: Warbling tone
+- **Wayland Native**: Optimized for Wayland compositors (Hyprland, Niri, etc.)
+- **Persistent Clipboard**: Background daemon for clipboard persistence
 
 ## Dependencies
 
 ### System Dependencies
 
+**Required for all systems:**
+- **Audio System**: PipeWire (for audio recording)
+- **Text Input**: ydotool (for direct text typing via SIGUSR1)
+- **Clipboard**: wtype (for clipboard operations via SIGUSR2) 
+- **Environment**: Wayland display server
+
 **Arch Linux:**
 ```bash
-sudo pacman -S pipewire pipewire-pulse pipewire-alsa wtype
+sudo pacman -S pipewire pipewire-pulse pipewire-alsa ydotool wtype
 ```
 
 **Ubuntu/Debian:**
 ```bash
 sudo apt update
-sudo apt install pipewire pipewire-pulse pipewire-alsa wtype
+sudo apt install pipewire pipewire-pulse pipewire-alsa ydotool wtype
 ```
 
 **Fedora:**
 ```bash
-sudo dnf install pipewire pipewire-pulseaudio pipewire-alsa wtype
+sudo dnf install pipewire pipewire-pulseaudio pipewire-alsa ydotool wtype
+```
+
+**Post-installation setup for ydotool:**
+```bash
+# Add user to input group for ydotool permissions
+sudo usermod -a -G input $USER
+# Log out and back in for group changes to take effect
 ```
 
 ### Build Dependencies
@@ -86,10 +107,15 @@ nohup ./target/release/waystt > /tmp/waystt.log 2>&1 & disown
 
 Once running, waystt continuously records audio and waits for signals:
 
+- **SIGUSR1**: Stop recording, transcribe audio, and type text directly (using ydotool)
 - **SIGUSR2**: Stop recording, transcribe audio, and copy text to clipboard
 
 Send signals using:
 ```bash
+# For direct text typing
+pkill --signal SIGUSR1 waystt
+
+# For clipboard copy
 pkill --signal SIGUSR2 waystt
 ```
 
@@ -107,13 +133,16 @@ tail -f /tmp/waystt.log
 Add to your `~/.config/hypr/hyprland.conf`:
 
 ```bash
-# waystt - Speech to Text
-bind = SUPER, R, exec, pgrep -x waystt >/dev/null && pkill -USR2 waystt || waystt &
+# waystt - Speech to Text (direct typing)
+bind = SUPER, R, exec, pgrep -x waystt >/dev/null && pkill -USR1 waystt || waystt &
+
+# waystt - Speech to Text (clipboard copy)  
+bind = SUPER SHIFT, R, exec, pgrep -x waystt >/dev/null && pkill -USR2 waystt || waystt &
 ```
 
-This keybinding (Super+R) will:
-- Start waystt if not running
-- Send SIGUSR2 signal to transcribe and copy to clipboard if already running
+These keybindings will:
+- **Super+R**: Start waystt if not running, or send SIGUSR1 to transcribe and type directly
+- **Super+Shift+R**: Start waystt if not running, or send SIGUSR2 to transcribe and copy to clipboard
 
 ### Niri
 
@@ -121,8 +150,11 @@ Add to your `~/.config/niri/config.kdl`:
 
 ```kdl
 binds {
-    // waystt - Speech to Text
-    Mod+R { spawn "sh" "-c" "pgrep -x waystt >/dev/null && pkill -USR2 waystt || waystt &"; }
+    // waystt - Speech to Text (direct typing)
+    Mod+R { spawn "sh" "-c" "pgrep -x waystt >/dev/null && pkill -USR1 waystt || waystt &"; }
+    
+    // waystt - Speech to Text (clipboard copy)
+    Mod+Shift+R { spawn "sh" "-c" "pgrep -x waystt >/dev/null && pkill -USR2 waystt || waystt &"; }
 }
 ```
 
@@ -134,28 +166,59 @@ The application reads configuration from `.env` file or environment variables:
 # Required
 OPENAI_API_KEY=your_api_key_here
 
-# Optional (with defaults)
+# Audio Feedback (optional)
+ENABLE_AUDIO_FEEDBACK=true
+BEEP_VOLUME=0.1
+
+# Audio Configuration (optional)
+AUDIO_BUFFER_DURATION_SECONDS=300
+AUDIO_SAMPLE_RATE=16000
+AUDIO_CHANNELS=1
+
+# Whisper Configuration (optional)
 WHISPER_MODEL=whisper-1
 WHISPER_LANGUAGE=auto
-WHISPER_TIMEOUT_SECONDS=30
+WHISPER_TIMEOUT_SECONDS=60
 WHISPER_MAX_RETRIES=3
+
+# Logging (optional)
+RUST_LOG=info
 ```
 
 ### Configuration Options
 
-- `OPENAI_API_KEY`: Your OpenAI API key (required)
+**Required:**
+- `OPENAI_API_KEY`: Your OpenAI API key
+
+**Audio Feedback:**
+- `ENABLE_AUDIO_FEEDBACK`: Enable/disable musical beep notifications (default: true)
+- `BEEP_VOLUME`: Volume level for beeps, 0.0-1.0 (default: 0.1)
+
+**Audio Recording:**
+- `AUDIO_BUFFER_DURATION_SECONDS`: Maximum recording duration (default: 300)
+- `AUDIO_SAMPLE_RATE`: Recording sample rate (default: 16000)
+- `AUDIO_CHANNELS`: Number of audio channels (default: 1)
+
+**Whisper API:**
 - `WHISPER_MODEL`: OpenAI Whisper model to use (default: whisper-1)
 - `WHISPER_LANGUAGE`: Language for transcription (default: auto)
-- `WHISPER_TIMEOUT_SECONDS`: API timeout in seconds (default: 30)
+- `WHISPER_TIMEOUT_SECONDS`: API timeout in seconds (default: 60)
 - `WHISPER_MAX_RETRIES`: Number of retry attempts (default: 3)
+
+**Logging:**
+- `RUST_LOG`: Log level (default: info)
 
 ## Workflow
 
-1. **Start Recording**: Launch waystt - it immediately begins recording audio
-2. **Speak**: Talk into your microphone
-3. **Trigger Transcription**: Press your configured keybind (Super+R) or send SIGUSR2
-4. **Get Result**: Transcribed text is copied to clipboard
-5. **Paste**: Use Ctrl+V to paste the transcribed text anywhere
+1. **Start Recording**: Launch waystt - it immediately begins recording audio with a "ding dong" sound
+2. **Speak**: Talk into your microphone while recording indicator shows
+3. **Trigger Transcription**: Press your configured keybind or send signal:
+   - **Super+R** (SIGUSR1): Direct text typing - transcribed text appears immediately where cursor is
+   - **Super+Shift+R** (SIGUSR2): Clipboard copy - transcribed text copied for manual pasting
+4. **Audio Feedback**: Listen for completion sounds:
+   - "Dong ding" when recording stops
+   - "Ding ding" when transcription succeeds and text is typed/copied
+5. **Result**: Text is either typed directly or available via Ctrl+V
 
 ## Troubleshooting
 
@@ -166,9 +229,16 @@ If audio recording fails:
 - Check microphone permissions
 - Verify microphone is not muted
 
+### Text Input Issues
+
+If direct text typing (SIGUSR1) fails:
+- Ensure ydotool is installed and user is in input group
+- Check ydotool permissions: `sudo usermod -a -G input $USER` (requires re-login)
+- Verify ydotool daemon is running: `systemctl --user status ydotool`
+
 ### Clipboard Issues
 
-If clipboard operations fail:
+If clipboard operations (SIGUSR2) fail:
 - Ensure you're running under Wayland: `echo $WAYLAND_DISPLAY`
 - Install wtype: Required for clipboard pasting functionality
 

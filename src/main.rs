@@ -1,5 +1,5 @@
 use anyhow::Result;
-use signal_hook::consts::{SIGTERM, SIGUSR1, SIGUSR2};
+use signal_hook::consts::{SIGTERM, /*SIGUSR1,*/ SIGUSR2};
 use signal_hook_tokio::Signals;
 use futures::stream::StreamExt;
 use clap::Parser;
@@ -92,7 +92,7 @@ async fn process_audio_for_transcription(
                                 .map_err(|e| anyhow::anyhow!("Failed to initialize clipboard: {}", e))?;
                             
                             match action {
-                                "paste" => {
+                                /*"paste" => {
                                     // SIGUSR1: Copy to clipboard (persistent) and paste
                                     match clipboard_manager.copy_text_persistent(&transcribed_text) {
                                         Ok(()) => {
@@ -119,7 +119,7 @@ async fn process_audio_for_transcription(
                                             return Err(anyhow::anyhow!("Clipboard operation failed: {}", e));
                                         }
                                     }
-                                }
+                                }*/
                                 "copy" => {
                                     // SIGUSR2: Copy to clipboard only (with persistence)
                                     match clipboard_manager.copy_text_persistent(&transcribed_text) {
@@ -229,9 +229,9 @@ async fn main() -> Result<()> {
     // Give PipeWire a moment to start capturing
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
     
-    let mut signals = Signals::new(&[SIGUSR1, SIGUSR2, SIGTERM])?;
+    let mut signals = Signals::new(&[/*SIGUSR1,*/ SIGUSR2, SIGTERM])?;
     
-    println!("Ready. Send SIGUSR1 to transcribe and paste, SIGUSR2 to transcribe and copy.");
+    println!("Ready. Send SIGUSR2 to transcribe and copy.");
     
     // Main event loop - process audio and wait for signals
     loop {
@@ -247,7 +247,7 @@ async fn main() -> Result<()> {
         ).await {
             Ok(Some(signal)) => {
                 match signal {
-                    SIGUSR1 => {
+                    /*SIGUSR1 => {
                         println!("Received SIGUSR1: Stop recording, transcribe, and paste");
                         
                         // Stop recording
@@ -262,14 +262,14 @@ async fn main() -> Result<()> {
                                 println!("Captured {} audio samples ({:.2} seconds)", audio_data.len(), duration);
                                 
                                 // Process audio for transcription
-                                if let Err(e) = process_audio_for_transcription(
+                                /*if let Err(e) = process_audio_for_transcription(
                                     audio_data, 
                                     16000, // Using fixed sample rate from audio module
                                     "paste",
                                     &config
                                 ).await {
                                     eprintln!("Audio processing failed: {}", e);
-                                }
+                                }*/
                                 
                                 // Clear buffer to free memory
                                 if let Err(e) = recorder.clear_buffer() {
@@ -282,7 +282,7 @@ async fn main() -> Result<()> {
                         }
                         
                         break;
-                    }
+                    }*/
                     SIGUSR2 => {
                         println!("Received SIGUSR2: Stop recording, transcribe, and copy");
                         

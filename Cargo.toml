@@ -23,15 +23,13 @@ cpal = "0.15"
 # Wayland clipboard integration
 wl-clipboard-rs = "0.8"
 
-# JSON serialization for API responses
-serde = { version = "1.0", features = ["derive"] }
+# JSON parsing for API responses
 serde_json = "1.0"
 
 # Error handling
 thiserror = "1.0"
 
-# Process daemonization
-daemonize = "0.5"
+# System interface for clipboard daemon
 libc = "0.2"
 
 

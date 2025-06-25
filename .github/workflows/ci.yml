@@ -118,14 +118,9 @@ jobs:
     name: Build Matrix
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
         rust: [stable, beta]
-        exclude:
-          # Skip beta on macOS to save CI time
-          - os: macos-latest
-            rust: beta
     
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     
     steps:
     - name: Checkout code
@@ -136,8 +131,7 @@ jobs:
       with:
         toolchain: ${{ matrix.rust }}
 
-    - name: Install Linux dependencies
-      if: matrix.os == 'ubuntu-latest'
+    - name: Install system dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y \
@@ -148,16 +142,10 @@ jobs:
           libpipewire-0.3-dev \
           libspa-0.2-dev
 
-    - name: Install macOS dependencies
-      if: matrix.os == 'macos-latest'
-      run: |
-        brew install pkg-config
-
     - name: Check compilation
       run: cargo check --all-targets --all-features
 
-    - name: Run tests (Linux only)
-      if: matrix.os == 'ubuntu-latest'
+    - name: Run tests
       run: cargo test --verbose --all-features
       env:
         RUST_TEST_THREADS: 1

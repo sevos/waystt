@@ -3,6 +3,8 @@
 #![allow(clippy::cast_sign_loss)]
 #![allow(clippy::unused_self)]
 #![allow(clippy::similar_names)]
+#![allow(clippy::map_unwrap_or)]
+#![allow(clippy::redundant_closure_for_method_calls)]
 
 use anyhow::Result;
 

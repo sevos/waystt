@@ -1,3 +1,11 @@
+#![allow(clippy::doc_markdown)]
+#![allow(clippy::manual_let_else)]
+#![allow(clippy::single_match_else)]
+#![allow(clippy::cast_lossless)]
+#![allow(clippy::ignored_unit_patterns)]
+#![allow(clippy::items_after_statements)]
+#![allow(clippy::match_same_arms)]
+
 use anyhow::Result;
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use std::sync::atomic::{AtomicBool, Ordering};

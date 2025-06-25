@@ -1,3 +1,6 @@
+#![allow(clippy::match_same_arms)]
+#![allow(clippy::ptr_as_ptr)]
+
 use std::process::Command;
 use thiserror::Error;
 use wl_clipboard_rs::copy::{MimeType, Options, Source};

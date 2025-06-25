@@ -6,6 +6,9 @@
 #![allow(clippy::unused_self)]
 #![allow(clippy::unnecessary_wraps)]
 #![allow(clippy::needless_continue)]
+#![allow(clippy::too_many_lines)]
+#![allow(clippy::single_match_else)]
+#![allow(clippy::match_bool)]
 
 use anyhow::Result;
 use clap::Parser;

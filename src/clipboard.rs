@@ -232,6 +232,12 @@ impl ClipboardManager {
             return;
         }
         
+        // Change process name to distinguish from main waystt process
+        let daemon_name = b"waystt-clipboard-daemon\0";
+        unsafe {
+            libc::prctl(libc::PR_SET_NAME, daemon_name.as_ptr() as *const libc::c_char, 0, 0, 0);
+        }
+        
         // Set up clipboard with foreground mode to serve requests
         let mut opts = Options::new();
         opts.foreground(true);

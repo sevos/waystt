@@ -108,10 +108,10 @@ Instead of slow character-by-character typing:
 # Single keybinding one-liners for compositor hotkeys:
 
 # Toggle recording and paste result (most common)
-bindkey "Super+R" "pgrep waystt >/dev/null && pkill -USR1 waystt || waystt &"
+bindkey "Super+R" "pgrep -x waystt >/dev/null && pkill -USR1 waystt || waystt &"
 
 # Toggle recording and copy result only  
-bindkey "Super+Shift+R" "pgrep waystt >/dev/null && pkill -USR2 waystt || waystt &"
+bindkey "Super+Shift+R" "pgrep -x waystt >/dev/null && pkill -USR2 waystt || waystt &"
 ```
 
 ## Technical Milestones

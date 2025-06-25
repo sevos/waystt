@@ -44,7 +44,6 @@ impl BeepPlayer {
         Ok(Self { config })
     }
 
-
     /// Play a beep asynchronously (non-blocking)
     pub async fn play_async(&self, beep_type: BeepType) -> Result<()> {
         if !self.config.enabled {
@@ -59,7 +58,6 @@ impl BeepPlayer {
 
         Ok(())
     }
-
 
     /// Internal beep generation using CPAL
     fn play_beep_internal(beep_type: BeepType, volume: f32) -> Result<()> {
@@ -340,7 +338,6 @@ impl BeepPlayer {
             }
         }
     }
-
 }
 
 #[cfg(test)]
@@ -401,7 +398,6 @@ mod tests {
         assert!(result.is_ok());
     }
 
-
     #[test]
     fn test_beep_types_equality() {
         assert_eq!(BeepType::RecordingStart, BeepType::RecordingStart);
@@ -443,7 +439,6 @@ mod tests {
             assert_eq!(player.config.volume, volume);
         }
     }
-
 
     #[tokio::test]
     async fn test_beep_player_play_async_all_types() {

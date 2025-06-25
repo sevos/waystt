@@ -1,154 +1,75 @@
 # waystt - Wayland Speech-to-Text Tool
 
-A signal-driven speech-to-text application for Wayland environments that records audio and transcribes it using OpenAI's Whisper API.
+Press a keybind, speak, and get instant text output. A background speech-to-text tool that transcribes audio using OpenAI Whisper and either types directly or copies to clipboard.
 
 ## Features
 
-- **Continuous Audio Recording**: Background recording with signal-triggered transcription
-- **OpenAI Whisper Integration**: High-quality speech recognition using Whisper API
-- **Dual Output Modes**: 
-  - Direct text typing via ydotool (SIGUSR1)
-  - Clipboard copy for manual pasting (SIGUSR2)
-- **Musical Audio Feedback**: Pleasant beep patterns for user notifications
-  - Recording start: "Ding dong" (C4 → E4)
-  - Recording stop: "Dong ding" (E4 → C4) 
-  - Success: "Ding ding" (E4 → E4)
-  - Error: Warbling tone
-- **Wayland Native**: Optimized for Wayland compositors (Hyprland, Niri, etc.)
-- **Persistent Clipboard**: Background daemon for clipboard persistence
+- **Signal-driven**: Press keybind → speak → get text (no GUI needed)
+- **Dual output modes**: Direct typing or clipboard copy
+- **Background operation**: Runs continuously, always ready
+- **Audio feedback**: Beeps confirm recording start/stop and success
+- **Wayland native**: Works with modern Linux desktops (Hyprland, Niri, etc.)
 
-## Dependencies
+## Requirements
 
-### System Dependencies
+- **Wayland desktop** (Hyprland, Niri, GNOME, KDE, etc.)
+- **OpenAI API key** (for Whisper transcription)
+- **System packages**:
 
-**Required for all systems:**
-- **Audio System**: PipeWire (for audio recording)
-- **Text Input**: ydotool (for direct text typing via SIGUSR1)
-- **Clipboard**: wtype (for clipboard operations via SIGUSR2) 
-- **Environment**: Wayland display server
-
-**Arch Linux:**
 ```bash
-sudo pacman -S pipewire pipewire-pulse pipewire-alsa ydotool wtype
+# Arch Linux
+sudo pacman -S pipewire ydotool wtype
+
+# Ubuntu/Debian  
+sudo apt install pipewire-pulse ydotool wtype
+
+# Fedora
+sudo dnf install pipewire-pulseaudio ydotool wtype
 ```
 
-**Ubuntu/Debian:**
+**Setup ydotool permissions:**
 ```bash
-sudo apt update
-sudo apt install pipewire pipewire-pulse pipewire-alsa ydotool wtype
-```
-
-**Fedora:**
-```bash
-sudo dnf install pipewire pipewire-pulseaudio pipewire-alsa ydotool wtype
-```
-
-**Post-installation setup for ydotool:**
-```bash
-# Add user to input group for ydotool permissions
 sudo usermod -a -G input $USER
-# Log out and back in for group changes to take effect
-```
-
-### Build Dependencies
-
-- Rust (latest stable)
-- Cargo
-- PkgConfig
-- ALSA development libraries
-
-**Arch Linux:**
-```bash
-sudo pacman -S rust cargo pkgconf alsa-lib
-```
-
-**Ubuntu/Debian:**
-```bash
-sudo apt install rustc cargo pkg-config libasound2-dev
+# Log out and back in
 ```
 
 ## Installation
 
-### Download Binary (Recommended)
+### Download Binary
 
-1. Download the latest release for x86_64 Linux from [GitHub Releases](https://github.com/sevos/waystt/releases)
+1. Download from [GitHub Releases](https://github.com/sevos/waystt/releases)
+2. Install:
 
-2. Install to your local bin directory:
 ```bash
-# Download and install
 wget https://github.com/sevos/waystt/releases/download/v0.1.0/waystt-linux-x86_64
 mkdir -p ~/.local/bin
 mv waystt-linux-x86_64 ~/.local/bin/waystt
 chmod +x ~/.local/bin/waystt
-```
 
-3. Ensure `~/.local/bin` is in your PATH:
-```bash
-# Add to your shell profile (~/.bashrc, ~/.zshrc, etc.)
+# Add to PATH (add to ~/.bashrc or ~/.zshrc)
 export PATH="$HOME/.local/bin:$PATH"
-# Then reload your shell or run:
-source ~/.bashrc  # or ~/.zshrc
 ```
 
-### Building from Source
+## Quick Start
 
-1. Clone the repository:
+1. **Setup API key:**
 ```bash
-git clone https://github.com/sevos/waystt.git
-cd waystt
+# Create config file
+echo "OPENAI_API_KEY=your_api_key_here" > ~/.config/waystt.env
 ```
 
-2. Create environment configuration:
+2. **Start the service:**
 ```bash
-cp .env.example .env
-```
-
-3. Edit `.env` and add your OpenAI API key:
-```bash
-OPENAI_API_KEY=your_api_key_here
-```
-
-4. Build the application:
-```bash
-cargo build --release
-```
-
-5. The binary will be available at `./target/release/waystt`
-
-## Usage
-
-### Starting the Application
-
-Run waystt in the background:
-```bash
-# If installed to ~/.local/bin
 nohup waystt > /tmp/waystt.log 2>&1 & disown
-
-# If built from source
-nohup ./target/release/waystt > /tmp/waystt.log 2>&1 & disown
 ```
 
-### Signal-Based Transcription
-
-Once running, waystt continuously records audio and waits for signals:
-
-- **SIGUSR1**: Stop recording, transcribe audio, and type text directly (using ydotool)
-- **SIGUSR2**: Stop recording, transcribe audio, and copy text to clipboard
-
-Send signals using:
+3. **Use with signals:**
 ```bash
-# For direct text typing
+# Direct typing mode
 pkill --signal SIGUSR1 waystt
 
-# For clipboard copy
+# Clipboard mode  
 pkill --signal SIGUSR2 waystt
-```
-
-### Checking Logs
-
-Monitor application output:
-```bash
-tail -f /tmp/waystt.log
 ```
 
 ## Keyboard Shortcuts Setup
@@ -185,65 +106,24 @@ binds {
 
 ## Configuration
 
-The application reads configuration from `.env` file or environment variables:
+**Required:** Create `~/.config/waystt.env` with your OpenAI API key:
 
 ```bash
-# Required
 OPENAI_API_KEY=your_api_key_here
-
-# Audio Feedback (optional)
-ENABLE_AUDIO_FEEDBACK=true
-BEEP_VOLUME=0.1
-
-# Audio Configuration (optional)
-AUDIO_BUFFER_DURATION_SECONDS=300
-AUDIO_SAMPLE_RATE=16000
-AUDIO_CHANNELS=1
-
-# Whisper Configuration (optional)
-WHISPER_MODEL=whisper-1
-WHISPER_LANGUAGE=auto
-WHISPER_TIMEOUT_SECONDS=60
-WHISPER_MAX_RETRIES=3
-
-# Logging (optional)
-RUST_LOG=info
 ```
 
-### Configuration Options
+**Optional settings:**
+```bash
+# Disable audio beeps
+ENABLE_AUDIO_FEEDBACK=false
 
-**Required:**
-- `OPENAI_API_KEY`: Your OpenAI API key
+# Change transcription language  
+WHISPER_LANGUAGE=en
 
-**Audio Feedback:**
-- `ENABLE_AUDIO_FEEDBACK`: Enable/disable musical beep notifications (default: true)
-- `BEEP_VOLUME`: Volume level for beeps, 0.0-1.0 (default: 0.1)
+# Debug logging
+RUST_LOG=debug
+```
 
-**Audio Recording:**
-- `AUDIO_BUFFER_DURATION_SECONDS`: Maximum recording duration (default: 300)
-- `AUDIO_SAMPLE_RATE`: Recording sample rate (default: 16000)
-- `AUDIO_CHANNELS`: Number of audio channels (default: 1)
-
-**Whisper API:**
-- `WHISPER_MODEL`: OpenAI Whisper model to use (default: whisper-1)
-- `WHISPER_LANGUAGE`: Language for transcription (default: auto)
-- `WHISPER_TIMEOUT_SECONDS`: API timeout in seconds (default: 60)
-- `WHISPER_MAX_RETRIES`: Number of retry attempts (default: 3)
-
-**Logging:**
-- `RUST_LOG`: Log level (default: info)
-
-## Workflow
-
-1. **Start Recording**: Launch waystt - it immediately begins recording audio with a "ding dong" sound
-2. **Speak**: Talk into your microphone while recording indicator shows
-3. **Trigger Transcription**: Press your configured keybind or send signal:
-   - **Super+R** (SIGUSR1): Direct text typing - transcribed text appears immediately where cursor is
-   - **Super+Shift+R** (SIGUSR2): Clipboard copy - transcribed text copied for manual pasting
-4. **Audio Feedback**: Listen for completion sounds:
-   - "Dong ding" when recording stops
-   - "Ding ding" when transcription succeeds and text is typed/copied
-5. **Result**: Text is either typed directly or available via Ctrl+V
 
 ## Troubleshooting
 
@@ -288,19 +168,18 @@ cargo test
 RUST_LOG=debug cargo run
 ```
 
+## Building from Source
+
+```bash
+git clone https://github.com/sevos/waystt.git
+cd waystt
+echo "OPENAI_API_KEY=your_key" > .env
+cargo build --release
+./target/release/waystt
+```
+
 ## License
 
-This project is licensed under the GNU General Public License v3.0 or later (GPL-3.0-or-later).
+Licensed under GPL v3.0 or later. Source code: https://github.com/sevos/waystt
 
-**Source Code Availability**: As required by the GPL v3 license, the complete source code for this software is available at https://github.com/sevos/waystt. Anyone who distributes this software must also provide access to the corresponding source code.
-
-**License Summary**:
-- ✅ Commercial use allowed
-- ✅ Modification allowed
-- ✅ Distribution allowed
-- ✅ Private use allowed
-- ❗ **Copyleft**: Derivative works must also be GPL v3
-- ❗ **Source disclosure**: Must provide source code when distributing
-- ❗ **Same license**: Derivatives must use GPL v3 or compatible license
-
-For the full license text, see the [LICENSE](LICENSE) file.
+See [LICENSE](LICENSE) for full terms.

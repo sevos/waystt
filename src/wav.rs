@@ -1,3 +1,6 @@
+#![allow(clippy::cast_precision_loss)]
+#![allow(clippy::cast_possible_truncation)]
+
 use anyhow::Result;
 
 /// WAV file encoder for converting f32 audio samples to 16-bit PCM WAV format

@@ -1,3 +1,7 @@
+#![allow(clippy::float_cmp)]
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::cast_sign_loss)]
+
 use anyhow::Result;
 use std::path::Path;
 

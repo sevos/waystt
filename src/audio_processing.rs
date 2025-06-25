@@ -1,3 +1,9 @@
+#![allow(clippy::cast_precision_loss)]
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::cast_sign_loss)]
+#![allow(clippy::unused_self)]
+#![allow(clippy::similar_names)]
+
 use anyhow::Result;
 
 /// Audio processing utilities for speech recognition optimization

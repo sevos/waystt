@@ -1,5 +1,4 @@
 use anyhow::Result;
-use reqwest;
 use serde_json::Value;
 use std::time::Duration;
 use thiserror::Error;
@@ -62,19 +61,22 @@ impl WhisperClient {
 
         let mut retries = 0;
         loop {
-            match self.transcribe_attempt(&audio_data, language.as_deref()).await {
+            match self
+                .transcribe_attempt(&audio_data, language.as_deref())
+                .await
+            {
                 Ok(result) => return Ok(result),
                 Err(e) => {
                     retries += 1;
                     if retries > self.max_retries {
                         return Err(e);
                     }
-                    
+
                     // Don't retry on authentication errors
                     if matches!(e, WhisperError::AuthenticationFailed) {
                         return Err(e);
                     }
-                    
+
                     // Exponential backoff
                     let delay = Duration::from_millis(1000 * (1 << (retries - 1)).min(8));
                     tokio::time::sleep(delay).await;
@@ -89,7 +91,7 @@ impl WhisperClient {
         language: Option<&str>,
     ) -> Result<String, WhisperError> {
         let url = format!("{}/audio/transcriptions", self.base_url);
-        
+
         // Create multipart form
         let audio_part = reqwest::multipart::Part::bytes(audio_data.to_vec())
             .file_name("audio.wav")
@@ -119,10 +121,9 @@ impl WhisperClient {
         match status {
             reqwest::StatusCode::OK => {
                 let json: Value = serde_json::from_str(&response_text)?;
-                let text = json
-                    .get("text")
-                    .and_then(|t| t.as_str())
-                    .ok_or_else(|| WhisperError::ApiError("No text field in response".to_string()))?;
+                let text = json.get("text").and_then(|t| t.as_str()).ok_or_else(|| {
+                    WhisperError::ApiError("No text field in response".to_string())
+                })?;
                 Ok(text.to_string())
             }
             reqwest::StatusCode::UNAUTHORIZED => Err(WhisperError::AuthenticationFailed),
@@ -152,19 +153,84 @@ mod tests {
 
     #[test]
     fn test_file_size_validation() {
-        let client = WhisperClient::new_with_options(
-            "test-key".to_string(),
-            None,
-            None,
-            None,
-            None,
-        ).unwrap();
+        let client =
+            WhisperClient::new_with_options("test-key".to_string(), None, None, None, None)
+                .unwrap();
 
         // Test file too large
         let large_data = vec![0u8; 26 * 1024 * 1024]; // 26MB
         let rt = tokio::runtime::Runtime::new().unwrap();
         let result = rt.block_on(client.transcribe_with_language(large_data, None));
-        
+
+        assert!(matches!(result, Err(WhisperError::FileTooLarge(_))));
+    }
+
+    #[test]
+    fn test_whisper_client_configuration() {
+        // Test with custom configuration
+        let client = WhisperClient::new_with_options(
+            "custom-key".to_string(),
+            Some(60), // 60 second timeout
+            Some(5),  // 5 retries
+            Some("whisper-1".to_string()),
+            Some("https://custom.api.com/v1".to_string()),
+        )
+        .unwrap();
+
+        assert_eq!(client.api_key, "custom-key");
+        assert_eq!(client.max_retries, 5);
+        assert_eq!(client.model, "whisper-1");
+        assert_eq!(client.base_url, "https://custom.api.com/v1");
+    }
+
+    #[test]
+    fn test_whisper_client_defaults() {
+        // Test with default configuration
+        let client =
+            WhisperClient::new_with_options("test-key".to_string(), None, None, None, None)
+                .unwrap();
+
+        assert_eq!(client.api_key, "test-key");
+        assert_eq!(client.max_retries, 3);
+        assert_eq!(client.model, "whisper-1");
+        assert_eq!(client.base_url, "https://api.openai.com/v1");
+    }
+
+    #[test]
+    fn test_whisper_error_display() {
+        let auth_error = WhisperError::AuthenticationFailed;
+        assert_eq!(
+            auth_error.to_string(),
+            "Authentication failed - invalid API key"
+        );
+
+        let file_error = WhisperError::FileTooLarge(1000);
+        assert_eq!(
+            file_error.to_string(),
+            "File too large: 1000 bytes (max 25MB)"
+        );
+
+        let api_error = WhisperError::ApiError("Test error".to_string());
+        assert_eq!(api_error.to_string(), "API response error: Test error");
+    }
+
+    #[test]
+    fn test_file_size_boundary_conditions() {
+        let client =
+            WhisperClient::new_with_options("test-key".to_string(), None, None, None, None)
+                .unwrap();
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+
+        // Test exactly at the limit (should pass validation)
+        let max_size_data = vec![0u8; 25 * 1024 * 1024]; // Exactly 25MB
+        let result = rt.block_on(client.transcribe_with_language(max_size_data, None));
+        // Should fail for different reason (not file size)
+        assert!(!matches!(result, Err(WhisperError::FileTooLarge(_))));
+
+        // Test just over the limit (should fail validation)
+        let over_size_data = vec![0u8; 25 * 1024 * 1024 + 1]; // Just over 25MB
+        let result = rt.block_on(client.transcribe_with_language(over_size_data, None));
         assert!(matches!(result, Err(WhisperError::FileTooLarge(_))));
     }
 }

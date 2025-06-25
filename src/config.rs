@@ -13,6 +13,8 @@ pub struct Config {
     pub whisper_timeout_seconds: u64,
     pub whisper_max_retries: u32,
     pub rust_log: String,
+    pub enable_audio_feedback: bool,
+    pub beep_volume: f32,
 }
 
 impl Default for Config {
@@ -27,12 +29,15 @@ impl Default for Config {
             whisper_timeout_seconds: 60,
             whisper_max_retries: 3,
             rust_log: "info".to_string(),
+            enable_audio_feedback: true,
+            beep_volume: 0.1,
         }
     }
 }
 
 impl Config {
     /// Load configuration from environment variables
+    #[allow(clippy::field_reassign_with_default)]
     pub fn from_env() -> Self {
         let mut config = Config::default();
 
@@ -84,6 +89,17 @@ impl Config {
             config.rust_log = log_level;
         }
 
+        // Load audio feedback configuration
+        if let Ok(enabled) = std::env::var("ENABLE_AUDIO_FEEDBACK") {
+            config.enable_audio_feedback = enabled.to_lowercase() == "true";
+        }
+
+        if let Ok(volume) = std::env::var("BEEP_VOLUME") {
+            if let Ok(parsed) = volume.parse::<f32>() {
+                config.beep_volume = parsed.clamp(0.0, 1.0);
+            }
+        }
+
         config
     }
 
@@ -115,6 +131,13 @@ impl Config {
             return Err(anyhow::anyhow!("AUDIO_CHANNELS must be greater than 0"));
         }
 
+        if self.beep_volume < 0.0 || self.beep_volume > 1.0 {
+            return Err(anyhow::anyhow!(
+                "BEEP_VOLUME must be between 0.0 and 1.0, got: {}",
+                self.beep_volume
+            ));
+        }
+
         Ok(())
     }
 }
@@ -126,7 +149,7 @@ mod tests {
     use std::io::Write;
     use std::sync::Mutex;
     use tempfile::NamedTempFile;
-    
+
     // Mutex to ensure tests that modify environment variables run sequentially
     static ENV_MUTEX: Mutex<()> = Mutex::new(());
 
@@ -141,6 +164,8 @@ mod tests {
         env::remove_var("WHISPER_TIMEOUT_SECONDS");
         env::remove_var("WHISPER_MAX_RETRIES");
         env::remove_var("RUST_LOG");
+        env::remove_var("ENABLE_AUDIO_FEEDBACK");
+        env::remove_var("BEEP_VOLUME");
     }
 
     #[test]
@@ -153,12 +178,14 @@ mod tests {
         assert_eq!(config.whisper_model, "whisper-1");
         assert_eq!(config.whisper_language, "auto");
         assert_eq!(config.rust_log, "info");
+        assert!(config.enable_audio_feedback);
+        assert_eq!(config.beep_volume, 0.1);
     }
 
     #[test]
     fn test_config_from_env_defaults() {
         let _lock = ENV_MUTEX.lock().unwrap();
-        
+
         // Clear all environment variables first
         clear_env_vars();
 
@@ -172,7 +199,7 @@ mod tests {
         assert_eq!(config.whisper_timeout_seconds, 60);
         assert_eq!(config.whisper_max_retries, 3);
         assert_eq!(config.rust_log, "info");
-        
+
         // Clean up after test
         clear_env_vars();
     }
@@ -180,10 +207,10 @@ mod tests {
     #[test]
     fn test_config_from_env_variables() {
         let _lock = ENV_MUTEX.lock().unwrap();
-        
+
         // Clear environment variables first to ensure clean state
         clear_env_vars();
-        
+
         // Set environment variables
         env::set_var("OPENAI_API_KEY", "test-api-key");
         env::set_var("AUDIO_BUFFER_DURATION_SECONDS", "600");
@@ -213,10 +240,10 @@ mod tests {
     #[test]
     fn test_config_from_env_invalid_numbers() {
         let _lock = ENV_MUTEX.lock().unwrap();
-        
+
         // Clear at the start
         clear_env_vars();
-        
+
         // Set invalid numeric values
         env::set_var("AUDIO_BUFFER_DURATION_SECONDS", "invalid");
         env::set_var("AUDIO_SAMPLE_RATE", "not-a-number");
@@ -225,7 +252,7 @@ mod tests {
         env::set_var("WHISPER_MAX_RETRIES", "bad");
 
         let config = Config::from_env();
-        
+
         // Should fallback to defaults for invalid values
         assert_eq!(config.audio_buffer_duration_seconds, 300);
         assert_eq!(config.audio_sample_rate, 16000);
@@ -239,9 +266,9 @@ mod tests {
     #[test]
     fn test_load_env_file() {
         let _lock = ENV_MUTEX.lock().unwrap();
-        
+
         clear_env_vars();
-        
+
         // Create a temporary .env file
         let mut temp_file = NamedTempFile::new().unwrap();
         writeln!(temp_file, "OPENAI_API_KEY=file-api-key").unwrap();
@@ -251,17 +278,17 @@ mod tests {
 
         // Load config from file
         let config = Config::load_env_file(temp_file.path()).unwrap();
-        
+
         assert_eq!(config.openai_api_key, Some("file-api-key".to_string()));
         assert_eq!(config.audio_buffer_duration_seconds, 120);
         assert_eq!(config.whisper_model, "whisper-base");
         assert_eq!(config.rust_log, "warn");
-        
+
         // Other values should be defaults
         assert_eq!(config.audio_sample_rate, 16000);
         assert_eq!(config.audio_channels, 1);
         assert_eq!(config.whisper_language, "auto");
-        
+
         clear_env_vars();
     }
 
@@ -275,17 +302,20 @@ mod tests {
     fn test_config_validation_success() {
         let mut config = Config::default();
         config.openai_api_key = Some("test-key".to_string());
-        
+
         assert!(config.validate().is_ok());
     }
 
     #[test]
     fn test_config_validation_missing_api_key() {
         let config = Config::default(); // No API key
-        
+
         let result = config.validate();
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("OPENAI_API_KEY is required"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("OPENAI_API_KEY is required"));
     }
 
     #[test]
@@ -293,10 +323,13 @@ mod tests {
         let mut config = Config::default();
         config.openai_api_key = Some("test-key".to_string());
         config.audio_buffer_duration_seconds = 0;
-        
+
         let result = config.validate();
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("AUDIO_BUFFER_DURATION_SECONDS"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("AUDIO_BUFFER_DURATION_SECONDS"));
     }
 
     #[test]
@@ -304,10 +337,13 @@ mod tests {
         let mut config = Config::default();
         config.openai_api_key = Some("test-key".to_string());
         config.audio_sample_rate = 0;
-        
+
         let result = config.validate();
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("AUDIO_SAMPLE_RATE"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("AUDIO_SAMPLE_RATE"));
     }
 
     #[test]
@@ -315,9 +351,75 @@ mod tests {
         let mut config = Config::default();
         config.openai_api_key = Some("test-key".to_string());
         config.audio_channels = 0;
-        
+
         let result = config.validate();
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("AUDIO_CHANNELS"));
+    }
+
+    #[test]
+    fn test_config_validation_invalid_beep_volume() {
+        let mut config = Config::default();
+        config.openai_api_key = Some("test-key".to_string());
+        
+        // Test negative volume
+        config.beep_volume = -0.1;
+        let result = config.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("BEEP_VOLUME"));
+
+        // Test volume > 1.0
+        config.beep_volume = 1.1;
+        let result = config.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("BEEP_VOLUME"));
+    }
+
+    #[test]
+    fn test_config_audio_feedback_env_vars() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        clear_env_vars();
+
+        // Test enabled audio feedback
+        env::set_var("ENABLE_AUDIO_FEEDBACK", "true");
+        env::set_var("BEEP_VOLUME", "0.5");
+
+        let config = Config::from_env();
+        assert!(config.enable_audio_feedback);
+        assert_eq!(config.beep_volume, 0.5);
+
+        clear_env_vars();
+
+        // Test disabled audio feedback
+        env::set_var("ENABLE_AUDIO_FEEDBACK", "false");
+        env::set_var("BEEP_VOLUME", "0.8");
+
+        let config = Config::from_env();
+        assert!(!config.enable_audio_feedback);
+        assert_eq!(config.beep_volume, 0.8);
+
+        clear_env_vars();
+    }
+
+    #[test]
+    fn test_config_audio_feedback_invalid_env_vars() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        clear_env_vars();
+
+        // Test invalid volume values
+        env::set_var("BEEP_VOLUME", "invalid");
+        let config = Config::from_env();
+        assert_eq!(config.beep_volume, 0.1); // Should use default
+
+        // Test volume clamping
+        env::set_var("BEEP_VOLUME", "2.0");
+        let config = Config::from_env();
+        assert_eq!(config.beep_volume, 1.0); // Should be clamped to 1.0
+
+        env::set_var("BEEP_VOLUME", "-0.5");
+        let config = Config::from_env();
+        assert_eq!(config.beep_volume, 0.0); // Should be clamped to 0.0
+
+        clear_env_vars();
     }
 }

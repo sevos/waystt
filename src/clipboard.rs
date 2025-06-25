@@ -170,6 +170,34 @@ impl ClipboardManager {
         self.paste_text()
     }
     
+    // Type text directly using ydotool, avoiding clipboard entirely
+    pub fn type_text_directly(&mut self, text: &str) -> Result<(), ClipboardError> {
+        if text.is_empty() {
+            return Ok(());
+        }
+        
+        // Clean the text: replace newlines with spaces to avoid formatting issues
+        let cleaned_text = text.replace('\n', " ").replace('\r', " ");
+        
+        // Try ydotool type command
+        let output = Command::new("ydotool")
+            .arg("type")
+            .arg(&cleaned_text)
+            .output()
+            .map_err(|e| ClipboardError::InputSimulationFailed(
+                format!("Failed to execute ydotool: {}. Ensure ydotool is installed and configured.", e)
+            ))?;
+        
+        if output.status.success() {
+            Ok(())
+        } else {
+            let error_msg = String::from_utf8_lossy(&output.stderr);
+            Err(ClipboardError::InputSimulationFailed(
+                format!("ydotool type failed: {}. Ensure ydotool is properly configured with required permissions.", error_msg)
+            ))
+        }
+    }
+    
     // Utility method to check if Wayland is available
     pub fn is_wayland_available() -> bool {
         std::env::var("WAYLAND_DISPLAY").is_ok()

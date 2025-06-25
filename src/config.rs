@@ -361,7 +361,7 @@ mod tests {
     fn test_config_validation_invalid_beep_volume() {
         let mut config = Config::default();
         config.openai_api_key = Some("test-key".to_string());
-        
+
         // Test negative volume
         config.beep_volume = -0.1;
         let result = config.validate();

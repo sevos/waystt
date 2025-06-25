@@ -120,15 +120,25 @@ async fn process_audio_for_transcription(
                                                 transcribed_text
                                             );
                                             // Play success beep after successful typing
-                                            if let Err(e) = beep_player.play_async(BeepType::Success).await {
-                                                eprintln!("Warning: Failed to play success beep: {}", e);
+                                            if let Err(e) =
+                                                beep_player.play_async(BeepType::Success).await
+                                            {
+                                                eprintln!(
+                                                    "Warning: Failed to play success beep: {}",
+                                                    e
+                                                );
                                             }
                                         }
                                         Err(e) => {
                                             eprintln!("❌ Failed to type text: {}", e);
                                             // Play error beep on typing failure
-                                            if let Err(beep_err) = beep_player.play_async(BeepType::Error).await {
-                                                eprintln!("Warning: Failed to play error beep: {}", beep_err);
+                                            if let Err(beep_err) =
+                                                beep_player.play_async(BeepType::Error).await
+                                            {
+                                                eprintln!(
+                                                    "Warning: Failed to play error beep: {}",
+                                                    beep_err
+                                                );
                                             }
                                             return Err(anyhow::anyhow!(
                                                 "Text typing failed: {}",
@@ -151,8 +161,13 @@ async fn process_audio_for_transcription(
                                                 "💡 Clipboard data will persist after app exits"
                                             );
                                             // Play success beep after successful clipboard operation
-                                            if let Err(e) = beep_player.play_async(BeepType::Success).await {
-                                                eprintln!("Warning: Failed to play success beep: {}", e);
+                                            if let Err(e) =
+                                                beep_player.play_async(BeepType::Success).await
+                                            {
+                                                eprintln!(
+                                                    "Warning: Failed to play success beep: {}",
+                                                    e
+                                                );
                                             }
                                         }
                                         Err(e) => {
@@ -162,8 +177,13 @@ async fn process_audio_for_transcription(
                                                 ClipboardManager::get_setup_instructions()
                                             );
                                             // Play error beep on clipboard failure
-                                            if let Err(beep_err) = beep_player.play_async(BeepType::Error).await {
-                                                eprintln!("Warning: Failed to play error beep: {}", beep_err);
+                                            if let Err(beep_err) =
+                                                beep_player.play_async(BeepType::Error).await
+                                            {
+                                                eprintln!(
+                                                    "Warning: Failed to play error beep: {}",
+                                                    beep_err
+                                                );
                                             }
                                             return Err(anyhow::anyhow!(
                                                 "Clipboard operation failed: {}",
@@ -217,12 +237,12 @@ async fn process_audio_for_transcription(
         }
         Err(e) => {
             eprintln!("Audio processing failed: {}", e);
-            
+
             // Play error beep for audio processing failure
             if let Err(beep_err) = beep_player.play_async(BeepType::Error).await {
                 eprintln!("Warning: Failed to play error beep: {}", beep_err);
             }
-            
+
             if e.to_string().contains("too short") {
                 eprintln!("Tip: Try speaking for at least 0.1 seconds before sending signal");
             } else if e.to_string().contains("only silence") {

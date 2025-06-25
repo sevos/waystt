@@ -61,10 +61,9 @@ impl BeepPlayer {
 
         let beep_type_copy = beep_type;
         let volume = self.config.volume;
-        
-        tokio::task::spawn_blocking(move || {
-            Self::play_beep_internal(beep_type_copy, volume)
-        }).await??;
+
+        tokio::task::spawn_blocking(move || Self::play_beep_internal(beep_type_copy, volume))
+            .await??;
 
         Ok(())
     }
@@ -89,7 +88,10 @@ impl BeepPlayer {
         let config = match device.default_output_config() {
             Ok(config) => config,
             Err(e) => {
-                eprintln!("Warning: Failed to get audio output config for beeps: {}", e);
+                eprintln!(
+                    "Warning: Failed to get audio output config for beeps: {}",
+                    e
+                );
                 return Ok(());
             }
         };
@@ -186,10 +188,10 @@ impl BeepPlayer {
     /// Get frequency and duration parameters for different beep types
     fn get_beep_params(beep_type: BeepType) -> (f32, f32) {
         match beep_type {
-            BeepType::RecordingStart => (261.63, 500.0),   // C major (C4), 500ms total for "ding dong"
-            BeepType::RecordingStop => (329.63, 500.0),    // E major (E4), 500ms total for "dong ding"  
-            BeepType::Success => (329.63, 400.0),          // E major (E4), 400ms total for "ding ding"
-            BeepType::Error => (200.0, 300.0),             // 200Hz, 300ms (unchanged)
+            BeepType::RecordingStart => (261.63, 500.0), // C major (C4), 500ms total for "ding dong"
+            BeepType::RecordingStop => (329.63, 500.0), // E major (E4), 500ms total for "dong ding"
+            BeepType::Success => (329.63, 400.0),       // E major (E4), 400ms total for "ding ding"
+            BeepType::Error => (200.0, 300.0),          // 200Hz, 300ms (unchanged)
         }
     }
 
@@ -215,9 +217,15 @@ impl BeepPlayer {
                 continue;
             }
 
-            let frequency = Self::get_frequency_at_sample(*sample_index, sample_count, base_frequency, beep_type);
+            let frequency = Self::get_frequency_at_sample(
+                *sample_index,
+                sample_count,
+                base_frequency,
+                beep_type,
+            );
             let volume_multiplier = Self::get_volume_multiplier(beep_type);
-            let sample_value = (*phase * 2.0 * std::f32::consts::PI).sin() * volume * volume_multiplier;
+            let sample_value =
+                (*phase * 2.0 * std::f32::consts::PI).sin() * volume * volume_multiplier;
 
             for sample in frame {
                 *sample = sample_value;
@@ -254,9 +262,17 @@ impl BeepPlayer {
                 continue;
             }
 
-            let frequency = Self::get_frequency_at_sample(*sample_index, sample_count, base_frequency, beep_type);
+            let frequency = Self::get_frequency_at_sample(
+                *sample_index,
+                sample_count,
+                base_frequency,
+                beep_type,
+            );
             let volume_multiplier = Self::get_volume_multiplier(beep_type);
-            let sample_value = ((*phase * 2.0 * std::f32::consts::PI).sin() * volume * volume_multiplier * i16::MAX as f32) as i16;
+            let sample_value = ((*phase * 2.0 * std::f32::consts::PI).sin()
+                * volume
+                * volume_multiplier
+                * i16::MAX as f32) as i16;
 
             for sample in frame {
                 *sample = sample_value;
@@ -274,55 +290,62 @@ impl BeepPlayer {
     /// Get volume multiplier for different beep types
     fn get_volume_multiplier(beep_type: BeepType) -> f32 {
         match beep_type {
-            BeepType::RecordingStart => 2.0,    // Twice as loud
-            BeepType::RecordingStop => 2.0,     // Twice as loud
-            BeepType::Success => 1.0,           // Normal volume
-            BeepType::Error => 1.0,             // Normal volume
+            BeepType::RecordingStart => 2.0, // Twice as loud
+            BeepType::RecordingStop => 2.0,  // Twice as loud
+            BeepType::Success => 1.0,        // Normal volume
+            BeepType::Error => 1.0,          // Normal volume
         }
     }
 
     /// Get frequency at a specific sample for different beep effects
-    fn get_frequency_at_sample(sample_index: usize, total_samples: usize, base_frequency: f32, beep_type: BeepType) -> f32 {
-        const C4: f32 = 261.63;  // C major (C4)
-        const E4: f32 = 329.63;  // E major (E4)
-        
+    fn get_frequency_at_sample(
+        sample_index: usize,
+        total_samples: usize,
+        base_frequency: f32,
+        beep_type: BeepType,
+    ) -> f32 {
+        const C4: f32 = 261.63; // C major (C4)
+        const E4: f32 = 329.63; // E major (E4)
+
         match beep_type {
             BeepType::RecordingStart => {
                 // "Ding dong": C major then E major (low to high)
                 let progress = sample_index as f32 / total_samples as f32;
                 if progress < 0.45 {
-                    C4  // First beep: C major
+                    C4 // First beep: C major
                 } else if progress < 0.55 {
                     0.0 // Short gap between beeps
                 } else {
-                    E4  // Second beep: E major
+                    E4 // Second beep: E major
                 }
             }
             BeepType::RecordingStop => {
                 // "Dong ding": E major then C major (high to low) - symmetrical
                 let progress = sample_index as f32 / total_samples as f32;
                 if progress < 0.45 {
-                    E4  // First beep: E major
+                    E4 // First beep: E major
                 } else if progress < 0.55 {
                     0.0 // Short gap between beeps
                 } else {
-                    C4  // Second beep: C major
+                    C4 // Second beep: C major
                 }
             }
             BeepType::Success => {
                 // "Ding ding": Double E major beeps
                 let progress = sample_index as f32 / total_samples as f32;
                 if progress < 0.4 {
-                    E4  // First ding: E major
+                    E4 // First ding: E major
                 } else if progress < 0.6 {
                     0.0 // Gap between dings
                 } else {
-                    E4  // Second ding: E major
+                    E4 // Second ding: E major
                 }
             }
             BeepType::Error => {
                 // Warbling tone: oscillate between 180Hz and 220Hz (unchanged)
-                let wobble = (sample_index as f32 * 8.0 / total_samples as f32 * 2.0 * std::f32::consts::PI).sin();
+                let wobble =
+                    (sample_index as f32 * 8.0 / total_samples as f32 * 2.0 * std::f32::consts::PI)
+                        .sin();
                 base_frequency + (20.0 * wobble)
             }
         }
@@ -365,7 +388,7 @@ mod tests {
         let config = BeepConfig::default();
         let player = BeepPlayer::new(config.clone());
         assert!(player.is_ok());
-        
+
         let player = player.unwrap();
         assert_eq!(player.config().enabled, config.enabled);
         assert_eq!(player.config().volume, config.volume);
@@ -378,7 +401,7 @@ mod tests {
             volume: 0.1,
         };
         let player = BeepPlayer::new(config).unwrap();
-        
+
         // Should return Ok(()) when disabled, not attempt to play
         let result = player.play(BeepType::RecordingStart);
         assert!(result.is_ok());
@@ -391,7 +414,7 @@ mod tests {
             volume: 0.1,
         };
         let player = BeepPlayer::new(config).unwrap();
-        
+
         // Should return Ok(()) when disabled, not attempt to play
         let result = player.play_async(BeepType::Success).await;
         assert!(result.is_ok());
@@ -404,13 +427,13 @@ mod tests {
             volume: 0.1,
         };
         let mut player = BeepPlayer::new(initial_config).unwrap();
-        
+
         let new_config = BeepConfig {
             enabled: false,
             volume: 0.5,
         };
         player.set_config(new_config.clone());
-        
+
         assert_eq!(player.config().enabled, new_config.enabled);
         assert_eq!(player.config().volume, new_config.volume);
     }
@@ -421,7 +444,7 @@ mod tests {
         assert_eq!(BeepType::RecordingStop, BeepType::RecordingStop);
         assert_eq!(BeepType::Success, BeepType::Success);
         assert_eq!(BeepType::Error, BeepType::Error);
-        
+
         assert_ne!(BeepType::RecordingStart, BeepType::RecordingStop);
         assert_ne!(BeepType::Success, BeepType::Error);
     }
@@ -435,7 +458,7 @@ mod tests {
             BeepType::Success,
             BeepType::Error,
         ];
-        
+
         for beep_type in types {
             let debug_string = format!("{:?}", beep_type);
             assert!(!debug_string.is_empty());
@@ -446,7 +469,7 @@ mod tests {
     fn test_beep_config_volume_bounds() {
         // Test that we can set volume to various values
         let volumes = vec![0.0, 0.1, 0.5, 1.0];
-        
+
         for volume in volumes {
             let config = BeepConfig {
                 enabled: true,
@@ -461,7 +484,7 @@ mod tests {
     fn test_beep_player_play_all_types() {
         let config = BeepConfig::default();
         let player = BeepPlayer::new(config).unwrap();
-        
+
         // Test all beep types - these should not panic now that we've implemented them
         // They might fail if no audio device is available, but that's expected in CI
         let beep_types = vec![
@@ -470,7 +493,7 @@ mod tests {
             BeepType::Success,
             BeepType::Error,
         ];
-        
+
         for beep_type in beep_types {
             let result = player.play(beep_type);
             // We don't assert success here because audio devices might not be available in test environments
@@ -480,7 +503,7 @@ mod tests {
                     if !std::env::var("CI").is_ok() {
                         println!("Beep {:?} played successfully", beep_type);
                     }
-                },
+                }
                 Err(e) => {
                     if !std::env::var("CI").is_ok() {
                         println!("Beep {:?} failed (expected in test env): {}", beep_type, e);
@@ -494,7 +517,7 @@ mod tests {
     async fn test_beep_player_play_async_all_types() {
         let config = BeepConfig::default();
         let player = BeepPlayer::new(config).unwrap();
-        
+
         // Test all beep types asynchronously
         let beep_types = vec![
             BeepType::RecordingStart,
@@ -502,7 +525,7 @@ mod tests {
             BeepType::Success,
             BeepType::Error,
         ];
-        
+
         for beep_type in beep_types {
             let result = player.play_async(beep_type).await;
             // We don't assert success here because audio devices might not be available in test environments
@@ -511,10 +534,13 @@ mod tests {
                     if !std::env::var("CI").is_ok() {
                         println!("Async beep {:?} played successfully", beep_type);
                     }
-                },
+                }
                 Err(e) => {
                     if !std::env::var("CI").is_ok() {
-                        println!("Async beep {:?} failed (expected in test env): {}", beep_type, e);
+                        println!(
+                            "Async beep {:?} failed (expected in test env): {}",
+                            beep_type, e
+                        );
                     }
                 }
             }
@@ -525,24 +551,38 @@ mod tests {
     fn test_beep_params() {
         // Test that beep parameters are reasonable
         let params = [
-            (BeepType::RecordingStart, 261.63, 500.0),  // C major (C4)
-            (BeepType::RecordingStop, 329.63, 500.0),   // E major (E4)
-            (BeepType::Success, 329.63, 400.0),         // E major (E4)
-            (BeepType::Error, 200.0, 300.0),            // Unchanged
+            (BeepType::RecordingStart, 261.63, 500.0), // C major (C4)
+            (BeepType::RecordingStop, 329.63, 500.0),  // E major (E4)
+            (BeepType::Success, 329.63, 400.0),        // E major (E4)
+            (BeepType::Error, 200.0, 300.0),           // Unchanged
         ];
-        
+
         for (beep_type, expected_freq, expected_duration) in params {
             let (freq, duration) = BeepPlayer::get_beep_params(beep_type);
-            assert_eq!(freq, expected_freq, "Frequency mismatch for {:?}", beep_type);
-            assert_eq!(duration, expected_duration, "Duration mismatch for {:?}", beep_type);
+            assert_eq!(
+                freq, expected_freq,
+                "Frequency mismatch for {:?}",
+                beep_type
+            );
+            assert_eq!(
+                duration, expected_duration,
+                "Duration mismatch for {:?}",
+                beep_type
+            );
         }
     }
 
     #[test]
     fn test_volume_multipliers() {
         // Test volume multipliers for different beep types
-        assert_eq!(BeepPlayer::get_volume_multiplier(BeepType::RecordingStart), 2.0);
-        assert_eq!(BeepPlayer::get_volume_multiplier(BeepType::RecordingStop), 2.0);
+        assert_eq!(
+            BeepPlayer::get_volume_multiplier(BeepType::RecordingStart),
+            2.0
+        );
+        assert_eq!(
+            BeepPlayer::get_volume_multiplier(BeepType::RecordingStop),
+            2.0
+        );
         assert_eq!(BeepPlayer::get_volume_multiplier(BeepType::Success), 1.0);
         assert_eq!(BeepPlayer::get_volume_multiplier(BeepType::Error), 1.0);
     }
@@ -551,25 +591,48 @@ mod tests {
     fn test_frequency_at_sample() {
         // Test frequency calculation for different beep types
         let total_samples = 1000;
-        const C4: f32 = 261.63;  // C major (C4)
-        const E4: f32 = 329.63;  // E major (E4)
-        
+        const C4: f32 = 261.63; // C major (C4)
+        const E4: f32 = 329.63; // E major (E4)
+
         // Test recording start: C major then E major (ding dong)
-        let start_freq = BeepPlayer::get_frequency_at_sample(0, total_samples, C4, BeepType::RecordingStart);
-        let end_freq = BeepPlayer::get_frequency_at_sample(total_samples - 1, total_samples, C4, BeepType::RecordingStart);
+        let start_freq =
+            BeepPlayer::get_frequency_at_sample(0, total_samples, C4, BeepType::RecordingStart);
+        let end_freq = BeepPlayer::get_frequency_at_sample(
+            total_samples - 1,
+            total_samples,
+            C4,
+            BeepType::RecordingStart,
+        );
         assert_eq!(start_freq, C4, "Recording start should begin with C major");
         assert_eq!(end_freq, E4, "Recording start should end with E major");
-        
+
         // Test recording stop: E major then C major (dong ding - symmetrical)
-        let start_freq = BeepPlayer::get_frequency_at_sample(0, total_samples, E4, BeepType::RecordingStop);
-        let end_freq = BeepPlayer::get_frequency_at_sample(total_samples - 1, total_samples, E4, BeepType::RecordingStop);
+        let start_freq =
+            BeepPlayer::get_frequency_at_sample(0, total_samples, E4, BeepType::RecordingStop);
+        let end_freq = BeepPlayer::get_frequency_at_sample(
+            total_samples - 1,
+            total_samples,
+            E4,
+            BeepType::RecordingStop,
+        );
         assert_eq!(start_freq, E4, "Recording stop should begin with E major");
         assert_eq!(end_freq, C4, "Recording stop should end with C major");
-        
+
         // Test success: Double E major (ding ding)
-        let first_beep = BeepPlayer::get_frequency_at_sample(100, total_samples, E4, BeepType::Success);
-        let gap_freq = BeepPlayer::get_frequency_at_sample(total_samples / 2, total_samples, E4, BeepType::Success);
-        let second_beep = BeepPlayer::get_frequency_at_sample(total_samples - 100, total_samples, E4, BeepType::Success);
+        let first_beep =
+            BeepPlayer::get_frequency_at_sample(100, total_samples, E4, BeepType::Success);
+        let gap_freq = BeepPlayer::get_frequency_at_sample(
+            total_samples / 2,
+            total_samples,
+            E4,
+            BeepType::Success,
+        );
+        let second_beep = BeepPlayer::get_frequency_at_sample(
+            total_samples - 100,
+            total_samples,
+            E4,
+            BeepType::Success,
+        );
         assert_eq!(first_beep, E4, "Success first beep should be E major");
         assert_eq!(gap_freq, 0.0, "Success should have silence in the middle");
         assert_eq!(second_beep, E4, "Success second beep should be E major");

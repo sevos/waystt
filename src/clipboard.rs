@@ -231,11 +231,9 @@ impl ClipboardManager {
 
         // Fork the process to create daemon
         match unsafe { libc::fork() } {
-            -1 => {
-                Err(ClipboardError::OperationFailed(
-                    "Failed to fork process for clipboard daemon".to_string(),
-                ))
-            }
+            -1 => Err(ClipboardError::OperationFailed(
+                "Failed to fork process for clipboard daemon".to_string(),
+            )),
             0 => {
                 // Child process - this will become the daemon
                 Self::run_clipboard_daemon(&text_clone);

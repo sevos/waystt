@@ -197,7 +197,7 @@ impl TranscriptionProvider for GoogleV2RestProvider {
                 model: self.model.clone(),
                 language_codes,
                 features: RecognitionFeatures {
-                    enable_automatic_punctuation: true,
+                    enable_automatic_punctuation: false,
                     enable_word_time_offsets: false,
                     enable_word_confidence: false,
                 },

@@ -38,10 +38,7 @@ libc = "0.2"
 # Google Cloud Speech-to-Text (using google-api-proto instead of google-speech1)
 google-api-proto = { version = "1.710", features = ["google-cloud-speech-v2"] }
 tonic = "0.12"
-prost = "0.13"
 yup-oauth2 = "11.0"
-base64 = "0.21"
-url = "2.5"
 
 
 [dev-dependencies]

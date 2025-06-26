@@ -10,7 +10,7 @@ authors = ["Artur Roszczyk <artur.roszczyk@gmail.com>"]
 # Core dependencies (essential)
 tokio = { version = "1.0", features = ["full"] }
 anyhow = "1.0"
-reqwest = { version = "0.12", features = ["multipart", "stream"] }
+reqwest = { version = "0.12", features = ["multipart", "stream", "json"] }
 signal-hook = "0.3"
 signal-hook-tokio = { version = "0.3", features = ["futures-v0_3"] }
 futures = "0.3"
@@ -25,6 +25,8 @@ wl-clipboard-rs = "0.8"
 
 # JSON parsing for API responses
 serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+base64 = "0.22"
 
 # Error handling
 thiserror = "1.0"
@@ -37,7 +39,7 @@ libc = "0.2"
 
 # Google Cloud Speech-to-Text (using google-api-proto instead of google-speech1)
 google-api-proto = { version = "1.710", features = ["google-cloud-speech-v2"] }
-tonic = "0.12"
+tonic = { version = "0.12.3", features = ["tls-webpki-roots", "tls-native-roots"] }
 yup-oauth2 = "11.0"
 
 

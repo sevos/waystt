@@ -4,6 +4,8 @@ use std::fmt;
 pub mod openai;
 // Secure Google provider using google-api-proto
 pub mod google_v2;
+// Google provider using REST API
+pub mod google_v2_rest;
 
 #[derive(Debug)]
 pub enum TranscriptionError {
@@ -78,7 +80,7 @@ impl TranscriptionFactory {
                     )
                 })?;
 
-                let client = google_v2::GoogleV2Provider::new(
+                let client = google_v2_rest::GoogleV2RestProvider::new(
                     credentials_path,
                     config.google_speech_language_code,
                     config.google_speech_model,

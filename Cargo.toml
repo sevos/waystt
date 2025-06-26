@@ -35,6 +35,13 @@ async-trait = "0.1"
 # System interface for clipboard daemon
 libc = "0.2"
 
+# Google Cloud Speech-to-Text
+google-speech1 = "5.0"
+hyper = "0.14"
+hyper-rustls = "0.24"
+yup-oauth2 = "8.3"
+base64 = "0.21"
+
 
 [dev-dependencies]
 tempfile = "3.0"

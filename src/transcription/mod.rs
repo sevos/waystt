@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use std::fmt;
 
 pub mod openai;
+pub mod google;
 
 #[derive(Debug)]
 pub enum TranscriptionError {
@@ -46,7 +47,7 @@ pub trait TranscriptionProvider: Send + Sync {
 pub struct TranscriptionFactory;
 
 impl TranscriptionFactory {
-    pub fn create_provider(provider_type: &str) -> Result<Box<dyn TranscriptionProvider>, TranscriptionError> {
+    pub async fn create_provider(provider_type: &str) -> Result<Box<dyn TranscriptionProvider>, TranscriptionError> {
         match provider_type.to_lowercase().as_str() {
             "openai" => {
                 let config = crate::config::load_config();
@@ -60,6 +61,20 @@ impl TranscriptionFactory {
                     Some(config.whisper_model),
                     None,
                 )?;
+                
+                Ok(Box::new(client))
+            }
+            "google" => {
+                let config = crate::config::load_config();
+                let credentials_path = config.google_application_credentials
+                    .ok_or_else(|| TranscriptionError::ConfigurationError("Google application credentials not found".to_string()))?;
+                
+                let client = google::GoogleProvider::new(
+                    credentials_path,
+                    config.google_speech_language_code,
+                    config.google_speech_model,
+                    config.google_speech_alternative_languages,
+                ).await?;
                 
                 Ok(Box::new(client))
             }
@@ -91,9 +106,9 @@ mod tests {
         assert_eq!(error.to_string(), "Unsupported provider: azure");
     }
 
-    #[test]
-    fn test_factory_unsupported_provider() {
-        let result = TranscriptionFactory::create_provider("unsupported");
+    #[tokio::test]
+    async fn test_factory_unsupported_provider() {
+        let result = TranscriptionFactory::create_provider("unsupported").await;
         assert!(result.is_err());
         
         if let Err(TranscriptionError::UnsupportedProvider(provider)) = result {
@@ -103,12 +118,12 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_factory_openai_provider_missing_key() {
+    #[tokio::test]
+    async fn test_factory_openai_provider_missing_key() {
         let _lock = ENV_MUTEX.lock().unwrap();
         std::env::remove_var("OPENAI_API_KEY");
         
-        let result = TranscriptionFactory::create_provider("openai");
+        let result = TranscriptionFactory::create_provider("openai").await;
         assert!(result.is_err());
         
         if let Err(TranscriptionError::ConfigurationError(msg)) = result {
@@ -123,7 +138,7 @@ mod tests {
         let _lock = ENV_MUTEX.lock().unwrap();
         std::env::set_var("OPENAI_API_KEY", "test-key");
         
-        let result = TranscriptionFactory::create_provider("openai");
+        let result = TranscriptionFactory::create_provider("openai").await;
         assert!(result.is_ok());
         
         let provider = result.unwrap();
@@ -135,20 +150,35 @@ mod tests {
         assert!(result.is_err());
     }
 
-    #[test]
-    fn test_provider_switching_integration() {
+    #[tokio::test]
+    async fn test_factory_google_provider_missing_credentials() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        std::env::remove_var("GOOGLE_APPLICATION_CREDENTIALS");
+        
+        let result = TranscriptionFactory::create_provider("google").await;
+        assert!(result.is_err());
+        
+        if let Err(TranscriptionError::ConfigurationError(msg)) = result {
+            assert!(msg.contains("Google application credentials not found"));
+        } else {
+            panic!("Expected ConfigurationError for missing credentials");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_provider_switching_integration() {
         let _lock = ENV_MUTEX.lock().unwrap();
         std::env::set_var("OPENAI_API_KEY", "test-key");
         
         // Test case sensitivity
-        let result = TranscriptionFactory::create_provider("OpenAI");
+        let result = TranscriptionFactory::create_provider("OpenAI").await;
         assert!(result.is_ok());
 
-        let result = TranscriptionFactory::create_provider("OPENAI");
+        let result = TranscriptionFactory::create_provider("OPENAI").await;
         assert!(result.is_ok());
 
         // Test that unsupported providers are handled correctly
-        let result = TranscriptionFactory::create_provider("unsupported_provider");
+        let result = TranscriptionFactory::create_provider("unsupported_provider").await;
         assert!(result.is_err());
         
         if let Err(TranscriptionError::UnsupportedProvider(provider)) = result {
@@ -171,7 +201,7 @@ mod tests {
         let config = crate::config::load_config();
         assert_eq!(config.transcription_provider, "openai");
         
-        let provider = TranscriptionFactory::create_provider(&config.transcription_provider);
+        let provider = TranscriptionFactory::create_provider(&config.transcription_provider).await;
         assert!(provider.is_ok());
         
         // Cleanup

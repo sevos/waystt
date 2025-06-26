@@ -88,7 +88,7 @@ async fn process_audio_for_transcription(
                     );
 
                     // Initialize transcription provider with configuration
-                    let provider = TranscriptionFactory::create_provider(&config.transcription_provider)?;
+                    let provider = TranscriptionFactory::create_provider(&config.transcription_provider).await?;
 
                     // Send to transcription service
                     println!("Sending audio to {} provider...", config.transcription_provider);

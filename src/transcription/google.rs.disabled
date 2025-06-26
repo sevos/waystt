@@ -1,0 +1,255 @@
+use async_trait::async_trait;
+use google_speech1::oauth2::{self, ServiceAccountAuthenticator};
+use google_speech1::Speech;
+use google_speech1::api::{RecognitionAudio, RecognitionConfig, RecognizeRequest};
+use hyper::client::HttpConnector;
+use hyper_rustls::HttpsConnector;
+use std::sync::Arc;
+
+use crate::transcription::{TranscriptionError, TranscriptionProvider};
+
+pub struct GoogleProvider {
+    hub: Arc<Speech<HttpsConnector<HttpConnector>>>,
+    language_code: String,
+    model: String,
+    alternative_languages: Vec<String>,
+}
+
+impl GoogleProvider {
+    pub async fn new(
+        credentials_path: String,
+        language_code: String,
+        model: String,
+        alternative_languages: Vec<String>,
+    ) -> Result<Self, TranscriptionError> {
+        // Read service account key
+        let service_account_key = oauth2::read_service_account_key(&credentials_path).await
+            .map_err(|e| TranscriptionError::ConfigurationError(
+                format!("Failed to read service account key from {}: {}", credentials_path, e)
+            ))?
+
+        // Create authenticator
+        let auth = ServiceAccountAuthenticator::builder(service_account_key)
+            .build()
+            .await
+            .map_err(|_e| TranscriptionError::AuthenticationFailed)?;
+
+        // Create HTTPS connector
+        let connector = hyper_rustls::HttpsConnectorBuilder::new()
+            .with_native_roots()
+            .https_or_http()
+            .enable_http1()
+            .build();
+
+        // Create Speech hub
+        let hub = Speech::new(hyper::Client::builder().build(connector), auth);
+
+        Ok(Self {
+            hub: Arc::new(hub),
+            language_code,
+            model,
+            alternative_languages,
+        })
+    }
+
+    fn build_language_codes(&self, language_hint: Option<String>) -> Vec<String> {
+        let mut language_codes = Vec::new();
+
+        // If a specific language is provided, use it as primary
+        if let Some(lang) = language_hint {
+            language_codes.push(lang);
+        } else {
+            // Use configured primary language
+            language_codes.push(self.language_code.clone());
+        }
+
+        // Add alternative languages, but limit to 3 total as per Google's requirements
+        for alt_lang in &self.alternative_languages {
+            if language_codes.len() >= 3 {
+                break;
+            }
+            if !language_codes.contains(alt_lang) {
+                language_codes.push(alt_lang.clone());
+            }
+        }
+
+        language_codes
+    }
+}
+
+#[async_trait]
+impl TranscriptionProvider for GoogleProvider {
+    async fn transcribe_with_language(
+        &self,
+        audio_data: Vec<u8>,
+        language: Option<String>,
+    ) -> Result<String, TranscriptionError> {
+        if audio_data.is_empty() {
+            return Err(TranscriptionError::ApiError("Empty audio data".to_string()));
+        }
+
+        // Google Cloud Speech has a 10MB limit for synchronous recognition
+        const MAX_FILE_SIZE: usize = 10 * 1024 * 1024;
+        if audio_data.len() > MAX_FILE_SIZE {
+            return Err(TranscriptionError::FileTooLarge(audio_data.len()));
+        }
+
+        let language_codes = self.build_language_codes(language);
+
+        // Build recognition config
+        let mut config = RecognitionConfig {
+            encoding: Some("WEBM_OPUS".to_string()),
+            sample_rate_hertz: Some(16000), // Match our audio configuration
+            language_code: Some(language_codes[0].clone()),
+            model: Some(self.model.clone()),
+            ..Default::default()
+        };
+
+        // Add alternative language codes if available
+        if language_codes.len() > 1 {
+            config.alternative_language_codes = Some(language_codes[1..].to_vec());
+        }
+
+        // Build audio - content should be raw bytes, not base64 encoded
+        let audio = RecognitionAudio {
+            content: Some(audio_data),
+            uri: None,
+        };
+
+        // Build request
+        let request = RecognizeRequest {
+            config: Some(config),
+            audio: Some(audio),
+        };
+
+        // Make the API call  
+        let result = self
+            .hub
+            .speech()
+            .recognize(request)
+            .doit()
+            .await;
+
+        match result {
+            Err(e) => Err(TranscriptionError::ApiError(format!("Google API error: {}", e))),
+            Ok((_response, recognize_response)) => {
+                // Extract transcription from response
+                if let Some(results) = recognize_response.results {
+                    if let Some(result) = results.first() {
+                        if let Some(alternatives) = &result.alternatives {
+                            if let Some(alternative) = alternatives.first() {
+                                if let Some(transcript) = &alternative.transcript {
+                                    return Ok(transcript.clone());
+                                }
+                            }
+                        }
+                    }
+                }
+                Ok(String::new())
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Mutex;
+
+    static ENV_MUTEX: Mutex<()> = Mutex::new(());
+
+    // Helper to create provider for testing language code logic
+    fn create_test_provider(
+        language_code: String,
+        alternative_languages: Vec<String>,
+    ) -> TestableGoogleProvider {
+        TestableGoogleProvider {
+            language_code,
+            alternative_languages,
+        }
+    }
+
+    // Testable version of GoogleProvider that doesn't require a client
+    struct TestableGoogleProvider {
+        language_code: String,
+        alternative_languages: Vec<String>,
+    }
+
+    impl TestableGoogleProvider {
+        fn build_language_codes(&self, language_hint: Option<String>) -> Vec<String> {
+            let mut language_codes = Vec::new();
+
+            // If a specific language is provided, use it as primary
+            if let Some(lang) = language_hint {
+                language_codes.push(lang);
+            } else {
+                // Use configured primary language
+                language_codes.push(self.language_code.clone());
+            }
+
+            // Add alternative languages, but limit to 3 total as per Google's requirements
+            for alt_lang in &self.alternative_languages {
+                if language_codes.len() >= 3 {
+                    break;
+                }
+                if !language_codes.contains(alt_lang) {
+                    language_codes.push(alt_lang.clone());
+                }
+            }
+
+            language_codes
+        }
+    }
+
+    #[test]
+    fn test_build_language_codes_with_hint() {
+        let provider = create_test_provider(
+            "en-US".to_string(),
+            vec!["fr-FR".to_string(), "de-DE".to_string()],
+        );
+
+        let codes = provider.build_language_codes(Some("es-ES".to_string()));
+        assert_eq!(codes, vec!["es-ES", "fr-FR", "de-DE"]);
+    }
+
+    #[test]
+    fn test_build_language_codes_without_hint() {
+        let provider = create_test_provider(
+            "en-US".to_string(),
+            vec!["fr-FR".to_string(), "de-DE".to_string()],
+        );
+
+        let codes = provider.build_language_codes(None);
+        assert_eq!(codes, vec!["en-US", "fr-FR", "de-DE"]);
+    }
+
+    #[test]
+    fn test_build_language_codes_limit() {
+        let provider = create_test_provider(
+            "en-US".to_string(),
+            vec![
+                "fr-FR".to_string(),
+                "de-DE".to_string(),
+                "es-ES".to_string(),
+                "it-IT".to_string(),
+            ],
+        );
+
+        let codes = provider.build_language_codes(None);
+        assert_eq!(codes.len(), 3); // Should be limited to 3
+        assert_eq!(codes, vec!["en-US", "fr-FR", "de-DE"]);
+    }
+
+    #[test]
+    fn test_build_language_codes_no_duplicates() {
+        let provider = create_test_provider(
+            "en-US".to_string(),
+            vec!["en-US".to_string(), "fr-FR".to_string()],
+        );
+
+        let codes = provider.build_language_codes(Some("en-US".to_string()));
+        assert_eq!(codes, vec!["en-US", "fr-FR"]); // No duplicates
+    }
+
+    // Note: Full integration tests with actual Google client are in integration tests
+    // These unit tests focus on the logic that can be tested without external dependencies
+}

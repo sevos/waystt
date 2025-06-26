@@ -1,21 +1,28 @@
 use async_trait::async_trait;
-use google_speech1::oauth2::{self, ServiceAccountAuthenticator};
-use google_speech1::Speech;
-use google_speech1::api::{RecognitionAudio, RecognitionConfig, RecognizeRequest};
-use hyper::client::HttpConnector;
-use hyper_rustls::HttpsConnector;
-use std::sync::Arc;
+use google_api_proto::google::cloud::speech::v2::{
+    speech_client::SpeechClient,
+    RecognizeRequest,
+    RecognitionConfig,
+    AutoDetectDecodingConfig,
+    recognize_request::AudioSource,
+    recognition_config::DecodingConfig,
+    RecognitionFeatures,
+};
+use tonic::{transport::Channel, Request};
+use yup_oauth2::{ServiceAccountAuthenticator, ServiceAccountKey};
 
 use crate::transcription::{TranscriptionError, TranscriptionProvider};
 
-pub struct GoogleProvider {
-    hub: Arc<Speech<HttpsConnector<HttpConnector>>>,
+pub struct GoogleV2Provider {
+    client: SpeechClient<Channel>,
+    auth_token: String,
+    parent: String,
     language_code: String,
     model: String,
     alternative_languages: Vec<String>,
 }
 
-impl GoogleProvider {
+impl GoogleV2Provider {
     pub async fn new(
         credentials_path: String,
         language_code: String,
@@ -23,10 +30,20 @@ impl GoogleProvider {
         alternative_languages: Vec<String>,
     ) -> Result<Self, TranscriptionError> {
         // Read service account key
-        let service_account_key = oauth2::read_service_account_key(&credentials_path).await
+        let service_account_key = tokio::fs::read_to_string(&credentials_path)
+            .await
             .map_err(|e| TranscriptionError::ConfigurationError(
                 format!("Failed to read service account key from {}: {}", credentials_path, e)
             ))?;
+        
+        let service_account_key: ServiceAccountKey = serde_json::from_str(&service_account_key)
+            .map_err(|e| TranscriptionError::ConfigurationError(
+                format!("Failed to parse service account key: {}", e)
+            ))?;
+
+        // Extract project ID first
+        let project_id = service_account_key.project_id.clone()
+            .ok_or_else(|| TranscriptionError::ConfigurationError("No project_id in service account key".to_string()))?;
 
         // Create authenticator
         let auth = ServiceAccountAuthenticator::builder(service_account_key)
@@ -34,18 +51,27 @@ impl GoogleProvider {
             .await
             .map_err(|_e| TranscriptionError::AuthenticationFailed)?;
 
-        // Create HTTPS connector
-        let connector = hyper_rustls::HttpsConnectorBuilder::new()
-            .with_native_roots()
-            .https_or_http()
-            .enable_http1()
-            .build();
+        // Get access token
+        let token = auth.token(&["https://www.googleapis.com/auth/cloud-platform"])
+            .await
+            .map_err(|_e| TranscriptionError::AuthenticationFailed)?;
 
-        // Create Speech hub
-        let hub = Speech::new(hyper::Client::builder().build(connector), auth);
+        // Create channel with authentication
+        let channel = tonic::transport::Channel::from_static("https://speech.googleapis.com")
+            .connect()
+            .await
+            .map_err(|e| TranscriptionError::NetworkError(format!("Failed to connect: {}", e)))?;
+
+        // Create client (we'll add auth headers manually)
+        let client = SpeechClient::new(channel);
+        let auth_token = format!("Bearer {}", token.token().unwrap_or(""));
+
+        let parent = format!("projects/{}/locations/global", project_id);
 
         Ok(Self {
-            hub: Arc::new(hub),
+            client,
+            auth_token,
+            parent,
             language_code,
             model,
             alternative_languages,
@@ -78,7 +104,7 @@ impl GoogleProvider {
 }
 
 #[async_trait]
-impl TranscriptionProvider for GoogleProvider {
+impl TranscriptionProvider for GoogleV2Provider {
     async fn transcribe_with_language(
         &self,
         audio_data: Vec<u8>,
@@ -96,85 +122,82 @@ impl TranscriptionProvider for GoogleProvider {
 
         let language_codes = self.build_language_codes(language);
 
-        // Build recognition config
-        let mut config = RecognitionConfig {
-            encoding: Some("WEBM_OPUS".to_string()),
-            sample_rate_hertz: Some(16000), // Match our audio configuration
-            language_code: Some(language_codes[0].clone()),
-            model: Some(self.model.clone()),
-            ..Default::default()
-        };
+        // Build recognition config using AutoDetectDecodingConfig
+        let auto_detect_config = AutoDetectDecodingConfig {};
 
-        // Add alternative language codes if available
-        if language_codes.len() > 1 {
-            config.alternative_language_codes = Some(language_codes[1..].to_vec());
-        }
-
-        // Build audio - content should be raw bytes, not base64 encoded
-        let audio = RecognitionAudio {
-            content: Some(audio_data),
-            uri: None,
+        let config = RecognitionConfig {
+            decoding_config: Some(DecodingConfig::AutoDecodingConfig(auto_detect_config)),
+            model: self.model.clone(),
+            language_codes: language_codes,
+            features: Some(RecognitionFeatures {
+                enable_automatic_punctuation: true,
+                enable_word_time_offsets: false,
+                enable_word_confidence: false,
+                ..Default::default()
+            }),
+            adaptation: None,
+            transcript_normalization: None,
+            translation_config: None,
         };
 
         // Build request
         let request = RecognizeRequest {
+            recognizer: format!("{}/recognizers/_", self.parent),
             config: Some(config),
-            audio: Some(audio),
+            config_mask: None,
+            audio_source: Some(AudioSource::Content(audio_data.into())),
         };
 
-        // Make the API call  
-        let result = self
-            .hub
-            .speech()
-            .recognize(request)
-            .doit()
-            .await;
+        // Make the API call with auth header
+        let mut client = self.client.clone();
+        let mut req = Request::new(request);
+        req.metadata_mut().insert(
+            "authorization",
+            self.auth_token.parse()
+                .map_err(|_| TranscriptionError::AuthenticationFailed)?,
+        );
+        
+        let response = client
+            .recognize(req)
+            .await
+            .map_err(|e| TranscriptionError::ApiError(format!("Google API error: {}", e)))?;
 
-        match result {
-            Err(e) => Err(TranscriptionError::ApiError(format!("Google API error: {}", e))),
-            Ok((_response, recognize_response)) => {
-                // Extract transcription from response
-                if let Some(results) = recognize_response.results {
-                    if let Some(result) = results.first() {
-                        if let Some(alternatives) = &result.alternatives {
-                            if let Some(alternative) = alternatives.first() {
-                                if let Some(transcript) = &alternative.transcript {
-                                    return Ok(transcript.clone());
-                                }
-                            }
-                        }
-                    }
-                }
-                Ok(String::new())
+        let recognize_response = response.into_inner();
+
+        // Extract transcription from response
+        // Note: results is a Vec, not an Option<Vec>
+        if let Some(result) = recognize_response.results.first() {
+            // alternatives is a Vec, not an Option<Vec>
+            if let Some(alternative) = result.alternatives.first() {
+                return Ok(alternative.transcript.clone());
             }
         }
+        
+        Ok(String::new())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Mutex;
-
-    static ENV_MUTEX: Mutex<()> = Mutex::new(());
 
     // Helper to create provider for testing language code logic
     fn create_test_provider(
         language_code: String,
         alternative_languages: Vec<String>,
-    ) -> TestableGoogleProvider {
-        TestableGoogleProvider {
+    ) -> TestableGoogleV2Provider {
+        TestableGoogleV2Provider {
             language_code,
             alternative_languages,
         }
     }
 
-    // Testable version of GoogleProvider that doesn't require a client
-    struct TestableGoogleProvider {
+    // Testable version that doesn't require a client
+    struct TestableGoogleV2Provider {
         language_code: String,
         alternative_languages: Vec<String>,
     }
 
-    impl TestableGoogleProvider {
+    impl TestableGoogleV2Provider {
         fn build_language_codes(&self, language_hint: Option<String>) -> Vec<String> {
             let mut language_codes = Vec::new();
 
@@ -249,7 +272,4 @@ mod tests {
         let codes = provider.build_language_codes(Some("en-US".to_string()));
         assert_eq!(codes, vec!["en-US", "fr-FR"]); // No duplicates
     }
-
-    // Note: Full integration tests with actual Google client are in integration tests
-    // These unit tests focus on the logic that can be tested without external dependencies
 }

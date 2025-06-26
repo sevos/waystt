@@ -2,7 +2,8 @@ use async_trait::async_trait;
 use std::fmt;
 
 pub mod openai;
-pub mod google;
+// Secure Google provider using google-api-proto
+pub mod google_v2;
 
 #[derive(Debug)]
 pub enum TranscriptionError {
@@ -69,7 +70,7 @@ impl TranscriptionFactory {
                 let credentials_path = config.google_application_credentials
                     .ok_or_else(|| TranscriptionError::ConfigurationError("Google application credentials not found".to_string()))?;
                 
-                let client = google::GoogleProvider::new(
+                let client = google_v2::GoogleV2Provider::new(
                     credentials_path,
                     config.google_speech_language_code,
                     config.google_speech_model,

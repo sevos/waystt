@@ -4,7 +4,10 @@ use google_api_proto::google::cloud::speech::v2::{
     speech_client::SpeechClient, AutoDetectDecodingConfig, RecognitionConfig, RecognitionFeatures,
     RecognizeRequest,
 };
-use tonic::{transport::{Channel, ClientTlsConfig}, Request};
+use tonic::{
+    transport::{Channel, ClientTlsConfig},
+    Request,
+};
 use yup_oauth2::{ServiceAccountAuthenticator, ServiceAccountKey};
 
 use crate::transcription::{TranscriptionError, TranscriptionProvider};
@@ -19,6 +22,7 @@ pub struct GoogleV2Provider {
 }
 
 impl GoogleV2Provider {
+    #[allow(dead_code)]
     pub async fn new(
         credentials_path: String,
         language_code: String,
@@ -64,17 +68,18 @@ impl GoogleV2Provider {
             .map_err(|_e| TranscriptionError::AuthenticationFailed)?;
 
         // Create channel with explicit TLS configuration and timeout
-        let tls_config = ClientTlsConfig::new()
-            .domain_name("speech.googleapis.com");
+        let tls_config = ClientTlsConfig::new().domain_name("speech.googleapis.com");
         let endpoint = tonic::transport::Channel::from_static("https://speech.googleapis.com")
             .tls_config(tls_config)
             .map_err(|e| TranscriptionError::NetworkError(format!("TLS config error: {}", e)))?
             .timeout(std::time::Duration::from_secs(30))
             .connect_timeout(std::time::Duration::from_secs(10));
-        let channel = endpoint
-            .connect()
-            .await
-            .map_err(|e| TranscriptionError::NetworkError(format!("Failed to connect to speech.googleapis.com: {}", e)))?;
+        let channel = endpoint.connect().await.map_err(|e| {
+            TranscriptionError::NetworkError(format!(
+                "Failed to connect to speech.googleapis.com: {}",
+                e
+            ))
+        })?;
 
         // Create client (we'll add auth headers manually)
         let client = SpeechClient::new(channel);
@@ -172,17 +177,14 @@ impl TranscriptionProvider for GoogleV2Provider {
                 .map_err(|_| TranscriptionError::AuthenticationFailed)?,
         );
 
-        let response = client
-            .recognize(req)
-            .await
-            .map_err(|e| {
-                TranscriptionError::NetworkError(format!(
-                    "Google Speech API gRPC call failed: status={:?}, message={}, details={:?}",
-                    e.code(),
-                    e.message(),
-                    e.metadata()
-                ))
-            })?;
+        let response = client.recognize(req).await.map_err(|e| {
+            TranscriptionError::NetworkError(format!(
+                "Google Speech API gRPC call failed: status={:?}, message={}, details={:?}",
+                e.code(),
+                e.message(),
+                e.metadata()
+            ))
+        })?;
 
         let recognize_response = response.into_inner();
 

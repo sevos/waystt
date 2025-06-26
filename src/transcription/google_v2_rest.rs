@@ -68,14 +68,15 @@ impl GoogleV2RestProvider {
         alternative_languages: Vec<String>,
     ) -> Result<Self, TranscriptionError> {
         // Read service account key to get project ID
-        let service_account_key = tokio::fs::read_to_string(&credentials_path)
-            .await
-            .map_err(|e| {
-                TranscriptionError::ConfigurationError(format!(
-                    "Failed to read service account key from {}: {}",
-                    credentials_path, e
-                ))
-            })?;
+        let service_account_key =
+            tokio::fs::read_to_string(&credentials_path)
+                .await
+                .map_err(|e| {
+                    TranscriptionError::ConfigurationError(format!(
+                        "Failed to read service account key from {}: {}",
+                        credentials_path, e
+                    ))
+                })?;
 
         let service_account_key: ServiceAccountKey = serde_json::from_str(&service_account_key)
             .map_err(|e| {
@@ -185,7 +186,8 @@ impl TranscriptionProvider for GoogleV2RestProvider {
         let access_token = self.get_access_token().await?;
 
         // Encode audio as base64
-        let audio_base64 = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &audio_data);
+        let audio_base64 =
+            base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &audio_data);
 
         // Build language codes
         let language_codes = self.build_language_codes(language);
@@ -220,14 +222,15 @@ impl TranscriptionProvider for GoogleV2RestProvider {
             .json(&request_payload)
             .send()
             .await
-            .map_err(|e| {
-                TranscriptionError::NetworkError(format!("HTTP request failed: {}", e))
-            })?;
+            .map_err(|e| TranscriptionError::NetworkError(format!("HTTP request failed: {}", e)))?;
 
         // Check response status
         if !response.status().is_success() {
             let status = response.status();
-            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
             return Err(TranscriptionError::ApiError(format!(
                 "Google Speech API error: {} - {}",
                 status, error_text
@@ -235,12 +238,9 @@ impl TranscriptionProvider for GoogleV2RestProvider {
         }
 
         // Parse response
-        let recognize_response: RecognizeResponse = response
-            .json()
-            .await
-            .map_err(|e| {
-                TranscriptionError::ApiError(format!("Failed to parse response: {}", e))
-            })?;
+        let recognize_response: RecognizeResponse = response.json().await.map_err(|e| {
+            TranscriptionError::ApiError(format!("Failed to parse response: {}", e))
+        })?;
 
         // Extract transcription from response
         if let Some(result) = recognize_response.results.first() {
@@ -255,7 +255,6 @@ impl TranscriptionProvider for GoogleV2RestProvider {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
 
     // Helper to create provider for testing language code logic
     fn create_test_provider(

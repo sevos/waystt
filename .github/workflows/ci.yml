@@ -114,12 +114,8 @@ jobs:
         fail_ci_if_error: false
         token: ${{ secrets.CODECOV_TOKEN }}
 
-  build_matrix:
-    name: Build Matrix
-    strategy:
-      matrix:
-        rust: [stable, beta]
-    
+  build_artifact:
+    name: Build Artifact
     runs-on: ubuntu-latest
     
     steps:
@@ -127,9 +123,7 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@master
-      with:
-        toolchain: ${{ matrix.rust }}
+      uses: dtolnay/rust-toolchain@stable
 
     - name: Install system dependencies
       run: |
@@ -142,13 +136,11 @@ jobs:
           libpipewire-0.3-dev \
           libspa-0.2-dev
 
-    - name: Check compilation
-      run: cargo check --all-targets
-
-    - name: Run tests
-      run: cargo test --verbose
-      env:
-        RUST_TEST_THREADS: 1
-
     - name: Build release
       run: cargo build --release --verbose
+
+    - name: Upload binary artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: waystt-linux-x86_64
+        path: target/release/waystt

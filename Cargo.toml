@@ -1,6 +1,6 @@
 [package]
 name = "waystt"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Speech-to-text tool for Wayland"
 license = "GPL-3.0-or-later"

@@ -66,7 +66,7 @@ Create `PKGBUILD` file:
 ```bash
 # Maintainer: Your Name <your.email@example.com>
 pkgname=waystt
-pkgver=0.1.0
+pkgver=0.1.1
 pkgrel=1
 pkgdesc="Signal-driven speech-to-text tool for Wayland"
 arch=('x86_64')
@@ -114,7 +114,7 @@ Alternative `PKGBUILD` for binary package:
 # Maintainer: Your Name <your.email@example.com>
 pkgname=waystt-bin
 _pkgname=waystt
-pkgver=0.1.0
+pkgver=0.1.1
 pkgrel=1
 pkgdesc="Signal-driven speech-to-text tool for Wayland (binary release)"
 arch=('x86_64')
@@ -173,7 +173,7 @@ makepkg --printsrcinfo > .SRCINFO
 git add PKGBUILD .SRCINFO
 
 # Commit with descriptive message
-git commit -m "Initial release of waystt v0.1.0"
+git commit -m "Initial release of waystt v0.1.1"
 
 # Push to AUR
 git push origin master

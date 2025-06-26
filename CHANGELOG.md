@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2025-06-26
+
+### Added
+- Google Speech-to-Text provider support as alternative to OpenAI Whisper
+- Transcription provider abstraction with configurable providers
+- Comprehensive configuration options for Google Speech-to-Text:
+  - Language code selection (GOOGLE_SPEECH_LANGUAGE_CODE)
+  - Model selection (GOOGLE_SPEECH_MODEL) 
+  - Alternative languages for auto-detection
+- Updated documentation with detailed setup instructions for both providers
+
+### Changed
+- Enhanced README with clear configuration sections for OpenAI and Google providers
+- Improved troubleshooting documentation for provider-specific issues
+
 ## [0.1.0] - 2025-06-25
 
 ### Added

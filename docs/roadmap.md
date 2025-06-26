@@ -116,13 +116,21 @@ bindkey "Super+Shift+R" "pgrep -x waystt >/dev/null && pkill -USR2 waystt || way
 
 ## Technical Milestones
 
-### v0.1.0 - MVP (End of Week 2)
+### v0.1.0 - MVP ✅ COMPLETED
 - [x] Continuous audio recording via CPAL (cross-platform audio library)
-- [ ] Signal-based transcription with OpenAI Whisper
-- [ ] Clipboard + paste text injection
-- [ ] Basic error handling and logging
+- [x] Signal-based transcription with OpenAI Whisper
+- [x] Clipboard + paste text injection
+- [x] Basic error handling and logging
+- [x] Audio feedback system with musical beeps
+- [x] Direct text typing via ydotool
 
-### v0.2.0 - Enhanced (End of Week 3)
+### v0.1.1 - Multi-Provider Support ✅ COMPLETED
+- [x] Google Speech-to-Text provider integration
+- [x] Transcription provider abstraction
+- [x] Comprehensive configuration documentation
+- [x] Provider-specific troubleshooting guides
+
+### v0.2.0 - Enhanced (Future)
 - [ ] Local transcription fallback
 - [ ] Systemd service integration
 - [ ] Installation and distribution packages

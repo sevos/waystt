@@ -22,15 +22,15 @@ mod audio_processing;
 mod beep;
 mod clipboard;
 mod config;
+mod transcription;
 mod wav;
-mod whisper;
 use audio::AudioRecorder;
 use audio_processing::AudioProcessor;
 use beep::{BeepConfig, BeepPlayer, BeepType};
 use clipboard::ClipboardManager;
 use config::Config;
+use transcription::{TranscriptionError, TranscriptionFactory};
 use wav::WavEncoder;
-use whisper::WhisperClient;
 
 #[derive(Parser)]
 #[command(name = "waystt")]
@@ -86,28 +86,22 @@ async fn process_audio_for_transcription(
                         wav_data.len()
                     );
 
-                    // Initialize Whisper client with configuration
-                    let api_key = config.openai_api_key.as_ref()
-                        .ok_or_else(|| anyhow::anyhow!("OPENAI_API_KEY not found in configuration. Please set it in your .env file."))?;
-                    let whisper_client = WhisperClient::new_with_options(
-                        api_key.clone(),
-                        Some(config.whisper_timeout_seconds),
-                        Some(config.whisper_max_retries),
-                        Some(config.whisper_model.clone()),
-                        None, // Use default base URL
-                    )?;
+                    // Initialize transcription provider with configuration
+                    let provider =
+                        TranscriptionFactory::create_provider(&config.transcription_provider)
+                            .await?;
 
-                    // Send to OpenAI Whisper API for transcription
-                    println!("Sending audio to OpenAI Whisper API...");
+                    // Send to transcription service
+                    println!(
+                        "Sending audio to {} provider...",
+                        config.transcription_provider
+                    );
                     let language = if config.whisper_language == "auto" {
                         None
                     } else {
                         Some(config.whisper_language.clone())
                     };
-                    match whisper_client
-                        .transcribe_with_language(wav_data, language)
-                        .await
-                    {
+                    match provider.transcribe_with_language(wav_data, language).await {
                         Ok(transcribed_text) => {
                             if transcribed_text.trim().is_empty() {
                                 println!("Warning: Received empty transcription from Whisper API");
@@ -219,16 +213,22 @@ async fn process_audio_for_transcription(
                             }
 
                             // Provide helpful error messages
-                            match e {
-                                whisper::WhisperError::AuthenticationFailed => {
-                                    eprintln!("💡 Check your OPENAI_API_KEY in the .env file");
+                            match &e {
+                                TranscriptionError::AuthenticationFailed => {
+                                    eprintln!("💡 Check your API key configuration");
                                 }
-                                whisper::WhisperError::NetworkError(_) => {
+                                TranscriptionError::NetworkError(_) => {
                                     eprintln!("💡 Check your internet connection");
                                 }
-                                whisper::WhisperError::FileTooLarge(size) => {
+                                TranscriptionError::FileTooLarge(size) => {
                                     eprintln!("💡 Audio file too large: {} bytes (max 25MB)", size);
                                     eprintln!("💡 Try recording shorter clips");
+                                }
+                                TranscriptionError::ConfigurationError(_) => {
+                                    eprintln!("💡 Check your transcription provider configuration");
+                                }
+                                TranscriptionError::UnsupportedProvider(provider) => {
+                                    eprintln!("💡 Unsupported provider: {}. Check TRANSCRIPTION_PROVIDER setting", provider);
                                 }
                                 _ => {
                                     eprintln!("💡 Please check your configuration and try again");

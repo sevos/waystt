@@ -1,7 +1,7 @@
+use super::{TranscriptionError, TranscriptionProvider};
 use async_trait::async_trait;
 use serde_json::Value;
 use std::time::Duration;
-use super::{TranscriptionProvider, TranscriptionError};
 
 pub struct OpenAIProvider {
     api_key: String,
@@ -65,7 +65,9 @@ impl OpenAIProvider {
             .map_err(|e| TranscriptionError::NetworkError(e.to_string()))?;
 
         let status = response.status();
-        let response_text = response.text().await
+        let response_text = response
+            .text()
+            .await
             .map_err(|e| TranscriptionError::NetworkError(e.to_string()))?;
 
         match status {
@@ -144,13 +146,9 @@ mod tests {
 
     #[test]
     fn test_file_size_validation() {
-        let provider = OpenAIProvider::new_with_options(
-            "test-key".to_string(),
-            None,
-            None,
-            None,
-            None,
-        ).unwrap();
+        let provider =
+            OpenAIProvider::new_with_options("test-key".to_string(), None, None, None, None)
+                .unwrap();
 
         // Test file too large
         let large_data = vec![0u8; 26 * 1024 * 1024]; // 26MB
@@ -169,7 +167,8 @@ mod tests {
             Some(5),  // 5 retries
             Some("whisper-1".to_string()),
             Some("https://custom.api.com/v1".to_string()),
-        ).unwrap();
+        )
+        .unwrap();
 
         assert_eq!(provider.api_key, "custom-key");
         assert_eq!(provider.max_retries, 5);
@@ -180,13 +179,9 @@ mod tests {
     #[test]
     fn test_openai_provider_defaults() {
         // Test with default configuration
-        let provider = OpenAIProvider::new_with_options(
-            "test-key".to_string(),
-            None,
-            None,
-            None,
-            None,
-        ).unwrap();
+        let provider =
+            OpenAIProvider::new_with_options("test-key".to_string(), None, None, None, None)
+                .unwrap();
 
         assert_eq!(provider.api_key, "test-key");
         assert_eq!(provider.max_retries, 3);
@@ -196,13 +191,9 @@ mod tests {
 
     #[test]
     fn test_file_size_boundary_conditions() {
-        let provider = OpenAIProvider::new_with_options(
-            "test-key".to_string(),
-            None,
-            None,
-            None,
-            None,
-        ).unwrap();
+        let provider =
+            OpenAIProvider::new_with_options("test-key".to_string(), None, None, None, None)
+                .unwrap();
 
         let rt = tokio::runtime::Runtime::new().unwrap();
 

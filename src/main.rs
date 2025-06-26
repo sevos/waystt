@@ -24,13 +24,12 @@ mod clipboard;
 mod config;
 mod transcription;
 mod wav;
-mod whisper;
 use audio::AudioRecorder;
 use audio_processing::AudioProcessor;
 use beep::{BeepConfig, BeepPlayer, BeepType};
 use clipboard::ClipboardManager;
 use config::Config;
-use transcription::{TranscriptionFactory, TranscriptionError};
+use transcription::{TranscriptionError, TranscriptionFactory};
 use wav::WavEncoder;
 
 #[derive(Parser)]
@@ -88,19 +87,21 @@ async fn process_audio_for_transcription(
                     );
 
                     // Initialize transcription provider with configuration
-                    let provider = TranscriptionFactory::create_provider(&config.transcription_provider).await?;
+                    let provider =
+                        TranscriptionFactory::create_provider(&config.transcription_provider)
+                            .await?;
 
                     // Send to transcription service
-                    println!("Sending audio to {} provider...", config.transcription_provider);
+                    println!(
+                        "Sending audio to {} provider...",
+                        config.transcription_provider
+                    );
                     let language = if config.whisper_language == "auto" {
                         None
                     } else {
                         Some(config.whisper_language.clone())
                     };
-                    match provider
-                        .transcribe_with_language(wav_data, language)
-                        .await
-                    {
+                    match provider.transcribe_with_language(wav_data, language).await {
                         Ok(transcribed_text) => {
                             if transcribed_text.trim().is_empty() {
                                 println!("Warning: Received empty transcription from Whisper API");

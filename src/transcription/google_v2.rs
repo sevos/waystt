@@ -1,12 +1,8 @@
 use async_trait::async_trait;
 use google_api_proto::google::cloud::speech::v2::{
-    speech_client::SpeechClient,
+    recognition_config::DecodingConfig, recognize_request::AudioSource,
+    speech_client::SpeechClient, AutoDetectDecodingConfig, RecognitionConfig, RecognitionFeatures,
     RecognizeRequest,
-    RecognitionConfig,
-    AutoDetectDecodingConfig,
-    recognize_request::AudioSource,
-    recognition_config::DecodingConfig,
-    RecognitionFeatures,
 };
 use tonic::{transport::Channel, Request};
 use yup_oauth2::{ServiceAccountAuthenticator, ServiceAccountKey};
@@ -30,20 +26,30 @@ impl GoogleV2Provider {
         alternative_languages: Vec<String>,
     ) -> Result<Self, TranscriptionError> {
         // Read service account key
-        let service_account_key = tokio::fs::read_to_string(&credentials_path)
-            .await
-            .map_err(|e| TranscriptionError::ConfigurationError(
-                format!("Failed to read service account key from {}: {}", credentials_path, e)
-            ))?;
-        
+        let service_account_key =
+            tokio::fs::read_to_string(&credentials_path)
+                .await
+                .map_err(|e| {
+                    TranscriptionError::ConfigurationError(format!(
+                        "Failed to read service account key from {}: {}",
+                        credentials_path, e
+                    ))
+                })?;
+
         let service_account_key: ServiceAccountKey = serde_json::from_str(&service_account_key)
-            .map_err(|e| TranscriptionError::ConfigurationError(
-                format!("Failed to parse service account key: {}", e)
-            ))?;
+            .map_err(|e| {
+                TranscriptionError::ConfigurationError(format!(
+                    "Failed to parse service account key: {}",
+                    e
+                ))
+            })?;
 
         // Extract project ID first
-        let project_id = service_account_key.project_id.clone()
-            .ok_or_else(|| TranscriptionError::ConfigurationError("No project_id in service account key".to_string()))?;
+        let project_id = service_account_key.project_id.clone().ok_or_else(|| {
+            TranscriptionError::ConfigurationError(
+                "No project_id in service account key".to_string(),
+            )
+        })?;
 
         // Create authenticator
         let auth = ServiceAccountAuthenticator::builder(service_account_key)
@@ -52,7 +58,8 @@ impl GoogleV2Provider {
             .map_err(|_e| TranscriptionError::AuthenticationFailed)?;
 
         // Get access token
-        let token = auth.token(&["https://www.googleapis.com/auth/cloud-platform"])
+        let token = auth
+            .token(&["https://www.googleapis.com/auth/cloud-platform"])
             .await
             .map_err(|_e| TranscriptionError::AuthenticationFailed)?;
 
@@ -128,7 +135,7 @@ impl TranscriptionProvider for GoogleV2Provider {
         let config = RecognitionConfig {
             decoding_config: Some(DecodingConfig::AutoDecodingConfig(auto_detect_config)),
             model: self.model.clone(),
-            language_codes: language_codes,
+            language_codes,
             features: Some(RecognitionFeatures {
                 enable_automatic_punctuation: true,
                 enable_word_time_offsets: false,
@@ -153,10 +160,11 @@ impl TranscriptionProvider for GoogleV2Provider {
         let mut req = Request::new(request);
         req.metadata_mut().insert(
             "authorization",
-            self.auth_token.parse()
+            self.auth_token
+                .parse()
                 .map_err(|_| TranscriptionError::AuthenticationFailed)?,
         );
-        
+
         let response = client
             .recognize(req)
             .await
@@ -172,7 +180,7 @@ impl TranscriptionProvider for GoogleV2Provider {
                 return Ok(alternative.transcript.clone());
             }
         }
-        
+
         Ok(String::new())
     }
 }

@@ -122,7 +122,8 @@ impl Config {
         }
 
         // Load Google Speech-to-Text configuration
-        config.google_application_credentials = std::env::var("GOOGLE_APPLICATION_CREDENTIALS").ok();
+        config.google_application_credentials =
+            std::env::var("GOOGLE_APPLICATION_CREDENTIALS").ok();
 
         if let Ok(language) = std::env::var("GOOGLE_SPEECH_LANGUAGE_CODE") {
             config.google_speech_language_code = language;
@@ -553,7 +554,7 @@ mod tests {
         let config = Config::from_env();
         // This should fail validation without Google credentials
         assert!(config.validate().is_err());
-        
+
         // Test that Google provider works with credentials
         env::set_var("GOOGLE_APPLICATION_CREDENTIALS", "/path/to/creds.json");
         let config = Config::from_env();
@@ -570,17 +571,26 @@ mod tests {
 
         // Set Google-specific environment variables
         env::set_var("TRANSCRIPTION_PROVIDER", "google");
-        env::set_var("GOOGLE_APPLICATION_CREDENTIALS", "/path/to/credentials.json");
+        env::set_var(
+            "GOOGLE_APPLICATION_CREDENTIALS",
+            "/path/to/credentials.json",
+        );
         env::set_var("GOOGLE_SPEECH_LANGUAGE_CODE", "es-ES");
         env::set_var("GOOGLE_SPEECH_MODEL", "latest_short");
         env::set_var("GOOGLE_SPEECH_ALTERNATIVE_LANGUAGES", "en-US,fr-FR,de-DE");
 
         let config = Config::from_env();
         assert_eq!(config.transcription_provider, "google");
-        assert_eq!(config.google_application_credentials, Some("/path/to/credentials.json".to_string()));
+        assert_eq!(
+            config.google_application_credentials,
+            Some("/path/to/credentials.json".to_string())
+        );
         assert_eq!(config.google_speech_language_code, "es-ES");
         assert_eq!(config.google_speech_model, "latest_short");
-        assert_eq!(config.google_speech_alternative_languages, vec!["en-US", "fr-FR", "de-DE"]);
+        assert_eq!(
+            config.google_speech_alternative_languages,
+            vec!["en-US", "fr-FR", "de-DE"]
+        );
 
         clear_env_vars();
     }
@@ -591,9 +601,15 @@ mod tests {
         clear_env_vars();
 
         // Test with spaces and empty entries
-        env::set_var("GOOGLE_SPEECH_ALTERNATIVE_LANGUAGES", "en-US, fr-FR , , de-DE,");
+        env::set_var(
+            "GOOGLE_SPEECH_ALTERNATIVE_LANGUAGES",
+            "en-US, fr-FR , , de-DE,",
+        );
         let config = Config::from_env();
-        assert_eq!(config.google_speech_alternative_languages, vec!["en-US", "fr-FR", "de-DE"]);
+        assert_eq!(
+            config.google_speech_alternative_languages,
+            vec!["en-US", "fr-FR", "de-DE"]
+        );
 
         // Test empty string
         env::set_var("GOOGLE_SPEECH_ALTERNATIVE_LANGUAGES", "");
@@ -613,7 +629,10 @@ mod tests {
 
         let result = config.validate();
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("GOOGLE_APPLICATION_CREDENTIALS"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("GOOGLE_APPLICATION_CREDENTIALS"));
     }
 
     #[test]
@@ -636,6 +655,9 @@ mod tests {
 
         let result = config.validate();
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Unsupported transcription provider: azure"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Unsupported transcription provider: azure"));
     }
 }

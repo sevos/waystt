@@ -9,6 +9,7 @@ use std::path::Path;
 #[derive(Debug, Clone)]
 pub struct Config {
     pub openai_api_key: Option<String>,
+    pub transcription_provider: String,
     pub audio_buffer_duration_seconds: usize,
     pub audio_sample_rate: u32,
     pub audio_channels: u16,
@@ -25,6 +26,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             openai_api_key: None,
+            transcription_provider: "openai".to_string(),
             audio_buffer_duration_seconds: 300, // 5 minutes
             audio_sample_rate: 16000,           // Optimized for Whisper
             audio_channels: 1,                  // Mono
@@ -47,6 +49,11 @@ impl Config {
 
         // Load OpenAI API key
         config.openai_api_key = std::env::var("OPENAI_API_KEY").ok();
+
+        // Load transcription provider
+        if let Ok(provider) = std::env::var("TRANSCRIPTION_PROVIDER") {
+            config.transcription_provider = provider;
+        }
 
         // Load audio configuration
         if let Ok(duration) = std::env::var("AUDIO_BUFFER_DURATION_SECONDS") {
@@ -115,9 +122,10 @@ impl Config {
 
     /// Validate configuration
     pub fn validate(&self) -> Result<()> {
-        if self.openai_api_key.is_none() {
+        // Only require OpenAI API key if using OpenAI provider
+        if self.transcription_provider == "openai" && self.openai_api_key.is_none() {
             return Err(anyhow::anyhow!(
-                "OPENAI_API_KEY is required for transcription. Please set it in your .env file."
+                "OPENAI_API_KEY is required when using OpenAI provider. Please set it in your .env file."
             ));
         }
 
@@ -146,6 +154,11 @@ impl Config {
     }
 }
 
+/// Load configuration from environment variables
+pub fn load_config() -> Config {
+    Config::from_env()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -160,6 +173,7 @@ mod tests {
     // Helper function to clear all waystt environment variables
     fn clear_env_vars() {
         env::remove_var("OPENAI_API_KEY");
+        env::remove_var("TRANSCRIPTION_PROVIDER");
         env::remove_var("AUDIO_BUFFER_DURATION_SECONDS");
         env::remove_var("AUDIO_SAMPLE_RATE");
         env::remove_var("AUDIO_CHANNELS");
@@ -176,6 +190,7 @@ mod tests {
     fn test_default_config() {
         let config = Config::default();
         assert_eq!(config.openai_api_key, None);
+        assert_eq!(config.transcription_provider, "openai");
         assert_eq!(config.audio_buffer_duration_seconds, 300);
         assert_eq!(config.audio_sample_rate, 16000);
         assert_eq!(config.audio_channels, 1);
@@ -195,6 +210,7 @@ mod tests {
 
         let config = Config::from_env();
         assert_eq!(config.openai_api_key, None);
+        assert_eq!(config.transcription_provider, "openai");
         assert_eq!(config.audio_buffer_duration_seconds, 300);
         assert_eq!(config.audio_sample_rate, 16000);
         assert_eq!(config.audio_channels, 1);
@@ -225,9 +241,11 @@ mod tests {
         env::set_var("WHISPER_TIMEOUT_SECONDS", "120");
         env::set_var("WHISPER_MAX_RETRIES", "5");
         env::set_var("RUST_LOG", "debug");
+        env::set_var("TRANSCRIPTION_PROVIDER", "google");
 
         let config = Config::from_env();
         assert_eq!(config.openai_api_key, Some("test-api-key".to_string()));
+        assert_eq!(config.transcription_provider, "google");
         assert_eq!(config.audio_buffer_duration_seconds, 600);
         assert_eq!(config.audio_sample_rate, 44100);
         assert_eq!(config.audio_channels, 2);
@@ -279,11 +297,13 @@ mod tests {
         writeln!(temp_file, "AUDIO_BUFFER_DURATION_SECONDS=120").unwrap();
         writeln!(temp_file, "WHISPER_MODEL=whisper-base").unwrap();
         writeln!(temp_file, "RUST_LOG=warn").unwrap();
+        writeln!(temp_file, "TRANSCRIPTION_PROVIDER=openai").unwrap();
 
         // Load config from file
         let config = Config::load_env_file(temp_file.path()).unwrap();
 
         assert_eq!(config.openai_api_key, Some("file-api-key".to_string()));
+        assert_eq!(config.transcription_provider, "openai");
         assert_eq!(config.audio_buffer_duration_seconds, 120);
         assert_eq!(config.whisper_model, "whisper-base");
         assert_eq!(config.rust_log, "warn");
@@ -436,6 +456,48 @@ mod tests {
         env::set_var("BEEP_VOLUME", "-0.5");
         let config = Config::from_env();
         assert_eq!(config.beep_volume, 0.0); // Should be clamped to 0.0
+
+        clear_env_vars();
+    }
+
+    #[test]
+    fn test_transcription_provider_configuration() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        clear_env_vars();
+
+        // Test default provider
+        let config = Config::from_env();
+        assert_eq!(config.transcription_provider, "openai");
+
+        // Test custom provider
+        env::set_var("TRANSCRIPTION_PROVIDER", "google");
+        let config = Config::from_env();
+        assert_eq!(config.transcription_provider, "google");
+
+        clear_env_vars();
+    }
+
+    #[test]
+    fn test_backward_compatibility_validation() {
+        let _lock = ENV_MUTEX.lock().unwrap();
+        clear_env_vars();
+
+        // Test that OpenAI provider requires API key
+        env::set_var("TRANSCRIPTION_PROVIDER", "openai");
+        let config = Config::from_env();
+        assert!(config.validate().is_err());
+
+        // Test that OpenAI provider works with API key
+        env::set_var("OPENAI_API_KEY", "test-key");
+        let config = Config::from_env();
+        assert!(config.validate().is_ok());
+
+        // Test that non-OpenAI provider doesn't require OpenAI API key
+        env::remove_var("OPENAI_API_KEY");
+        env::set_var("TRANSCRIPTION_PROVIDER", "google");
+        let config = Config::from_env();
+        // This should pass validation even without OpenAI API key
+        assert!(config.validate().is_ok());
 
         clear_env_vars();
     }

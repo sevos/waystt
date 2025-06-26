@@ -29,6 +29,9 @@ serde_json = "1.0"
 # Error handling
 thiserror = "1.0"
 
+# Async trait support
+async-trait = "0.1"
+
 # System interface for clipboard daemon
 libc = "0.2"
 

@@ -46,7 +46,7 @@ impl AudioRecorder {
             .default_input_device()
             .ok_or_else(|| anyhow!("No default input device available"))?;
 
-        println!(
+        eprintln!(
             "🎤 Using audio device: {}",
             device.name().unwrap_or("Unknown".to_string())
         );
@@ -67,7 +67,7 @@ impl AudioRecorder {
             buffer_size: cpal::BufferSize::Default,
         };
 
-        println!(
+        eprintln!(
             "📊 Audio config: {}Hz, {} channels",
             config.sample_rate.0, config.channels
         );
@@ -95,7 +95,7 @@ impl AudioRecorder {
                     audio_buffer.extend_from_slice(data);
 
                     if old_len == 0 && !audio_buffer.is_empty() {
-                        println!(
+                        eprintln!(
                             "🎤 First audio samples captured! Got {} samples",
                             data.len()
                         );
@@ -115,7 +115,7 @@ impl AudioRecorder {
         self.stream = Some(stream);
         self.device = Some(device);
 
-        println!("✅ CPAL audio recording started successfully");
+        eprintln!("✅ CPAL audio recording started successfully");
         Ok(())
     }
 
@@ -133,7 +133,7 @@ impl AudioRecorder {
 
         self.device.take();
 
-        println!("🛑 CPAL audio recording stopped");
+        eprintln!("🛑 CPAL audio recording stopped");
         Ok(())
     }
 

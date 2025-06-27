@@ -65,7 +65,7 @@ async fn process_audio_for_transcription(
         volume: config.beep_volume,
     };
     let beep_player = BeepPlayer::new(beep_config)?;
-    println!(
+    eprintln!(
         "Processing audio for {}: {} samples",
         action,
         audio_data.len()
@@ -80,7 +80,7 @@ async fn process_audio_for_transcription(
             let original_duration = processor.get_duration_seconds(&audio_data);
             let processed_duration = processor.get_duration_seconds(&processed_audio);
 
-            println!(
+            eprintln!(
                 "Audio processed successfully: {:.2}s -> {:.2}s ({} samples)",
                 original_duration,
                 processed_duration,
@@ -91,7 +91,7 @@ async fn process_audio_for_transcription(
             let encoder = WavEncoder::new(sample_rate, 1);
             match encoder.encode_to_wav(&processed_audio) {
                 Ok(wav_data) => {
-                    println!(
+                    eprintln!(
                         "WAV encoded: {} bytes ready for transcription",
                         wav_data.len()
                     );
@@ -102,7 +102,7 @@ async fn process_audio_for_transcription(
                             .await?;
 
                     // Send to transcription service
-                    println!(
+                    eprintln!(
                         "Sending audio to {} provider...",
                         config.transcription_provider
                     );
@@ -114,12 +114,12 @@ async fn process_audio_for_transcription(
                     match provider.transcribe_with_language(wav_data, language).await {
                         Ok(transcribed_text) => {
                             if transcribed_text.trim().is_empty() {
-                                println!("Warning: Received empty transcription from Whisper API");
-                                println!("This might indicate silent audio or unclear speech");
+                                eprintln!("Warning: Received empty transcription from Whisper API");
+                                eprintln!("This might indicate silent audio or unclear speech");
                                 return Ok(());
                             }
 
-                            println!("Transcription successful: \"{}\"", transcribed_text);
+                            eprintln!("Transcription successful: \"{}\"", transcribed_text);
 
                             // Initialize clipboard manager
                             let mut clipboard_manager = ClipboardManager::new().map_err(|e| {
@@ -131,7 +131,7 @@ async fn process_audio_for_transcription(
                                     // SIGUSR1: Type text directly using ydotool
                                     match clipboard_manager.type_text_directly(&transcribed_text) {
                                         Ok(()) => {
-                                            println!(
+                                            eprintln!(
                                                 "✅ Text typed successfully: \"{}\"",
                                                 transcribed_text
                                             );
@@ -168,12 +168,12 @@ async fn process_audio_for_transcription(
                                     match clipboard_manager.copy_text_persistent(&transcribed_text)
                                     {
                                         Ok(()) => {
-                                            println!(
+                                            eprintln!(
                                                 "✅ Text copied to persistent clipboard: \"{}\"",
                                                 transcribed_text
                                             );
-                                            println!("💡 Paste manually with Ctrl+V when ready");
-                                            println!(
+                                            eprintln!("💡 Paste manually with Ctrl+V when ready");
+                                            eprintln!(
                                                 "💡 Clipboard data will persist after app exits"
                                             );
                                             // Play success beep after successful clipboard operation
@@ -209,8 +209,8 @@ async fn process_audio_for_transcription(
                                     }
                                 }
                                 _ => {
-                                    println!("❌ Unknown action: {}", action);
-                                    println!("Transcribed text: \"{}\"", transcribed_text);
+                                    eprintln!("❌ Unknown action: {}", action);
+                                    eprintln!("Transcribed text: \"{}\"", transcribed_text);
                                 }
                             }
                         }
@@ -284,7 +284,7 @@ async fn main() -> Result<()> {
 
     // Load configuration from environment file or system environment
     let config = if envfile.exists() {
-        println!("Loading environment from: {}", envfile.display());
+        eprintln!("Loading environment from: {}", envfile.display());
         match Config::load_env_file(&envfile) {
             Ok(config) => config,
             Err(e) => {
@@ -293,12 +293,12 @@ async fn main() -> Result<()> {
                     envfile.display(),
                     e
                 );
-                println!("Falling back to system environment");
+                eprintln!("Falling back to system environment");
                 Config::from_env()
             }
         }
     } else {
-        println!(
+        eprintln!(
             "Environment file {} not found, using system environment",
             envfile.display()
         );
@@ -313,8 +313,8 @@ async fn main() -> Result<()> {
         );
     }
 
-    println!("waystt - Wayland Speech-to-Text Tool");
-    println!("Starting audio recording...");
+    eprintln!("waystt - Wayland Speech-to-Text Tool");
+    eprintln!("Starting audio recording...");
 
     // Initialize beep player for recording feedback
     let beep_config = BeepConfig {
@@ -341,14 +341,14 @@ async fn main() -> Result<()> {
         return Err(e);
     }
 
-    println!("Audio recording started successfully!");
+    eprintln!("Audio recording started successfully!");
 
     // Give PipeWire a moment to start capturing
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
     let mut signals = Signals::new([SIGUSR1, SIGUSR2, SIGTERM])?;
 
-    println!("Ready. Send SIGUSR1 to transcribe and type, or SIGUSR2 to transcribe and copy.");
+    eprintln!("Ready. Send SIGUSR1 to transcribe and type, or SIGUSR2 to transcribe and copy.");
 
     // Main event loop - process audio and wait for signals
     loop {
@@ -362,7 +362,7 @@ async fn main() -> Result<()> {
             Ok(Some(signal)) => {
                 match signal {
                     SIGUSR1 => {
-                        println!("Received SIGUSR1: Stop recording, transcribe, and type");
+                        eprintln!("Received SIGUSR1: Stop recording, transcribe, and type");
 
                         // Stop recording
                         if let Err(e) = recorder.stop_recording() {
@@ -379,7 +379,7 @@ async fn main() -> Result<()> {
                             Ok(audio_data) => {
                                 let duration =
                                     recorder.get_recording_duration_seconds().unwrap_or(0.0);
-                                println!(
+                                eprintln!(
                                     "Captured {} audio samples ({:.2} seconds)",
                                     audio_data.len(),
                                     duration
@@ -409,7 +409,7 @@ async fn main() -> Result<()> {
                         break;
                     }
                     SIGUSR2 => {
-                        println!("Received SIGUSR2: Stop recording, transcribe, and copy");
+                        eprintln!("Received SIGUSR2: Stop recording, transcribe, and copy");
 
                         // Stop recording
                         if let Err(e) = recorder.stop_recording() {
@@ -426,7 +426,7 @@ async fn main() -> Result<()> {
                             Ok(audio_data) => {
                                 let duration =
                                     recorder.get_recording_duration_seconds().unwrap_or(0.0);
-                                println!(
+                                eprintln!(
                                     "Captured {} audio samples ({:.2} seconds)",
                                     audio_data.len(),
                                     duration
@@ -456,7 +456,7 @@ async fn main() -> Result<()> {
                         break;
                     }
                     SIGTERM => {
-                        println!("Received SIGTERM: Shutting down gracefully");
+                        eprintln!("Received SIGTERM: Shutting down gracefully");
                         if let Err(e) = recorder.stop_recording() {
                             eprintln!("Failed to stop recording: {}", e);
                         }
@@ -469,7 +469,7 @@ async fn main() -> Result<()> {
                         break;
                     }
                     _ => {
-                        println!("Received unexpected signal: {}", signal);
+                        eprintln!("Received unexpected signal: {}", signal);
                     }
                 }
             }
@@ -484,7 +484,7 @@ async fn main() -> Result<()> {
         }
     }
 
-    println!("Exiting waystt");
+    eprintln!("Exiting waystt");
     Ok(())
 }
 

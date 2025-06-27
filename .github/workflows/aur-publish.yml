@@ -14,18 +14,6 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Setup SSH for AUR
-      run: |
-        mkdir -p ~/.ssh
-        # Only scan for supported key types
-        ssh-keyscan -t rsa,ecdsa,ed25519 aur.archlinux.org >> ~/.ssh/known_hosts
-        # Configure SSH to ignore unknown key types
-        cat >> ~/.ssh/config << EOF
-        Host aur.archlinux.org
-          PubkeyAcceptedKeyTypes +ssh-rsa,ecdsa-sha2-nistp256,ssh-ed25519
-          KexAlgorithms +diffie-hellman-group14-sha256
-        EOF
-
     - name: Extract version from tag
       id: version
       run: |
@@ -63,3 +51,4 @@ jobs:
         commit_email: ${{ secrets.AUR_EMAIL }}
         ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
         commit_message: "Update to v${{ steps.version.outputs.version }}"
+        ssh_keyscan_types: rsa,ecdsa,ed25519

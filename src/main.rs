@@ -24,6 +24,9 @@ mod clipboard;
 mod config;
 mod transcription;
 mod wav;
+
+#[cfg(test)]
+mod test_utils;
 use audio::AudioRecorder;
 use audio_processing::AudioProcessor;
 use beep::{BeepConfig, BeepPlayer, BeepType};
@@ -38,8 +41,15 @@ use wav::WavEncoder;
 #[command(version)]
 struct Args {
     /// Path to environment file
-    #[arg(long, default_value = "./.env")]
-    envfile: PathBuf,
+    #[arg(long)]
+    envfile: Option<PathBuf>,
+}
+
+fn get_default_config_path() -> PathBuf {
+    dirs::config_dir()
+        .unwrap_or_else(|| std::env::var("HOME").map_or_else(|_| PathBuf::from("."), PathBuf::from))
+        .join("waystt")
+        .join(".env")
 }
 
 /// Process recorded audio for transcription
@@ -269,15 +279,18 @@ async fn process_audio_for_transcription(
 async fn main() -> Result<()> {
     let args = Args::parse();
 
+    // Determine the config file path
+    let envfile = args.envfile.unwrap_or_else(get_default_config_path);
+
     // Load configuration from environment file or system environment
-    let config = if args.envfile.exists() {
-        println!("Loading environment from: {}", args.envfile.display());
-        match Config::load_env_file(&args.envfile) {
+    let config = if envfile.exists() {
+        println!("Loading environment from: {}", envfile.display());
+        match Config::load_env_file(&envfile) {
             Ok(config) => config,
             Err(e) => {
                 eprintln!(
                     "Warning: Failed to load environment file {}: {}",
-                    args.envfile.display(),
+                    envfile.display(),
                     e
                 );
                 println!("Falling back to system environment");
@@ -287,7 +300,7 @@ async fn main() -> Result<()> {
     } else {
         println!(
             "Environment file {} not found, using system environment",
-            args.envfile.display()
+            envfile.display()
         );
         Config::from_env()
     };

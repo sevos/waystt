@@ -79,45 +79,6 @@ jobs:
     - name: Run security audit
       run: cargo audit
 
-  coverage:
-    name: Code Coverage
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@stable
-
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          libasound2-dev \
-          pkg-config \
-          libpulse-dev \
-          libjack-jackd2-dev \
-          libpipewire-0.3-dev \
-          libspa-0.2-dev
-
-    - name: Install cargo-tarpaulin
-      run: cargo install cargo-tarpaulin
-
-    - name: Generate code coverage
-      run: cargo tarpaulin --verbose --workspace --timeout 300 --out xml
-      env:
-        RUST_TEST_THREADS: 1
-        BEEP_VOLUME: 0.0
-        CI: true
-
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v4
-      with:
-        file: ./cobertura.xml
-        fail_ci_if_error: false
-        token: ${{ secrets.CODECOV_TOKEN }}
-
   build_artifact:
     name: Build Artifact
     runs-on: ubuntu-latest

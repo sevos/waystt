@@ -27,8 +27,6 @@ serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 base64 = "0.22"
 
-# Error handling
-thiserror = "1.0"
 
 # Async trait support
 async-trait = "0.1"

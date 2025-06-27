@@ -1,0 +1,53 @@
+name: Publish to AUR
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  aur-publish:
+    name: Publish waystt-bin to AUR
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Extract version from tag
+      id: version
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/v}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Version: $VERSION"
+
+    - name: Download release binary
+      run: |
+        wget -O waystt-linux-x86_64 "https://github.com/sevos/waystt/releases/download/v${{ steps.version.outputs.version }}/waystt-linux-x86_64"
+        chmod +x waystt-linux-x86_64
+
+    - name: Calculate SHA256 checksum
+      id: checksum
+      run: |
+        CHECKSUM=$(sha256sum waystt-linux-x86_64 | cut -d' ' -f1)
+        echo "checksum=$CHECKSUM" >> $GITHUB_OUTPUT
+        echo "Checksum: $CHECKSUM"
+
+    - name: Generate PKGBUILD
+      run: |
+        cp aur/waystt-bin/PKGBUILD.template PKGBUILD
+        sed -i "s/VERSION_PLACEHOLDER/${{ steps.version.outputs.version }}/g" PKGBUILD
+        sed -i "s/CHECKSUM_PLACEHOLDER/${{ steps.checksum.outputs.checksum }}/g" PKGBUILD
+        
+        echo "Generated PKGBUILD:"
+        cat PKGBUILD
+
+    - name: Publish to AUR
+      uses: KSXGitHub/github-actions-deploy-aur@v2.7.1
+      with:
+        pkgname: waystt-bin
+        pkgbuild: ./PKGBUILD
+        commit_username: ${{ secrets.AUR_USERNAME }}
+        commit_email: ${{ secrets.AUR_EMAIL }}
+        ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+        commit_message: "Update to v${{ steps.version.outputs.version }}"

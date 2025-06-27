@@ -12,12 +12,18 @@ Configuration:
 
 ## Testing
 - Always set the beep volume to 0, when running tests `BEEP_VOLUME=0.0 cargo test...`
+- When developing/testing, use `--envfile .env` to use the project-local .env file instead of ~/.config/waystt/.env
+- Example: `BEEP_VOLUME=0.0 cargo run -- --envfile .env`
 
 ## QA Testing Workflow
 
 - For QAing, run the app with `nohup` and `&` to properly detach from terminal:
   ```bash
+  # Using production config (~/.config/waystt/.env)
   nohup ./target/release/waystt > /tmp/waystt.log 2>&1 & disown
+  
+  # Or during development using project-local .env file
+  nohup ./target/release/waystt --envfile .env > /tmp/waystt.log 2>&1 & disown
   ```
 - Then:
   - Listen for "ding dong" sound confirming recording started

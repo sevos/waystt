@@ -69,8 +69,15 @@ echo "OPENAI_API_KEY=your_api_key_here" > ~/.config/waystt/.env
 ```
 
 2. **Start the service:**
+
+**If installed via AUR:**
 ```bash
-cd ~/.config/waystt && nohup ~/.local/bin/waystt > /tmp/waystt.log 2>&1 & disown
+nohup waystt > /tmp/waystt.log 2>&1 & disown
+```
+
+**If installed manually to ~/.local/bin:**
+```bash
+nohup ~/.local/bin/waystt > /tmp/waystt.log 2>&1 & disown
 ```
 
 3. **Use with signals:**
@@ -88,12 +95,22 @@ pkill --signal SIGUSR2 waystt
 
 Add to your `~/.config/hypr/hyprland.conf`:
 
+**If installed via AUR:**
 ```bash
 # waystt - Speech to Text (direct typing)
-bind = SUPER, R, exec, pgrep -x waystt >/dev/null && pkill -USR1 waystt || (cd ~/.config/waystt && ~/.local/bin/waystt &)
+bind = SUPER, R, exec, pgrep -x waystt >/dev/null && pkill -USR1 waystt || waystt &
 
 # waystt - Speech to Text (clipboard copy)  
-bind = SUPER SHIFT, R, exec, pgrep -x waystt >/dev/null && pkill -USR2 waystt || (cd ~/.config/waystt && ~/.local/bin/waystt &)
+bind = SUPER SHIFT, R, exec, pgrep -x waystt >/dev/null && pkill -USR2 waystt || waystt &
+```
+
+**If installed manually to ~/.local/bin:**
+```bash
+# waystt - Speech to Text (direct typing)
+bind = SUPER, R, exec, pgrep -x waystt >/dev/null && pkill -USR1 waystt || ~/.local/bin/waystt &
+
+# waystt - Speech to Text (clipboard copy)  
+bind = SUPER SHIFT, R, exec, pgrep -x waystt >/dev/null && pkill -USR2 waystt || ~/.local/bin/waystt &
 ```
 
 These keybindings will:
@@ -104,13 +121,25 @@ These keybindings will:
 
 Add to your `~/.config/niri/config.kdl`:
 
+**If installed via AUR:**
 ```kdl
 binds {
     // waystt - Speech to Text (direct typing)
-    Mod+R { spawn "sh" "-c" "pgrep -x waystt >/dev/null && pkill -USR1 waystt || (cd ~/.config/waystt && ~/.local/bin/waystt &)"; }
+    Mod+R { spawn "sh" "-c" "pgrep -x waystt >/dev/null && pkill -USR1 waystt || waystt &"; }
     
     // waystt - Speech to Text (clipboard copy)
-    Mod+Shift+R { spawn "sh" "-c" "pgrep -x waystt >/dev/null && pkill -USR2 waystt || (cd ~/.config/waystt && ~/.local/bin/waystt &)"; }
+    Mod+Shift+R { spawn "sh" "-c" "pgrep -x waystt >/dev/null && pkill -USR2 waystt || waystt &"; }
+}
+```
+
+**If installed manually to ~/.local/bin:**
+```kdl
+binds {
+    // waystt - Speech to Text (direct typing)
+    Mod+R { spawn "sh" "-c" "pgrep -x waystt >/dev/null && pkill -USR1 waystt || ~/.local/bin/waystt &"; }
+    
+    // waystt - Speech to Text (clipboard copy)
+    Mod+Shift+R { spawn "sh" "-c" "pgrep -x waystt >/dev/null && pkill -USR2 waystt || ~/.local/bin/waystt &"; }
 }
 ```
 

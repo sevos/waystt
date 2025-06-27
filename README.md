@@ -97,6 +97,33 @@ waystt | tee /tmp/waystt-output.txt
 pkill --signal SIGUSR1 waystt
 ```
 
+## Quick Reference
+
+### Common Commands
+
+```bash
+# Start waystt and save output to file
+waystt > output.txt
+
+# Start waystt and copy output to clipboard
+waystt --pipe-to wl-copy
+
+# Start waystt and type output directly
+waystt --pipe-to ydotool type --file -
+
+# Trigger transcription (if waystt is running)
+pkill --signal SIGUSR1 waystt
+```
+
+### Keybinding Pattern
+
+Most keybindings follow this pattern:
+```bash
+pgrep -x waystt >/dev/null && pkill --signal SIGUSR1 waystt || (waystt [OPTIONS] &)
+```
+
+This means: "If waystt is running, send signal to transcribe. Otherwise, start waystt with specified options."
+
 ## Keyboard Shortcuts Setup
 
 ### Hyprland
@@ -105,15 +132,29 @@ Add to your `~/.config/hypr/hyprland.conf`:
 
 ```bash
 # waystt - Speech to Text (direct typing)
-bind = SUPER, R, exec, pgrep -x waystt >/dev/null && pkill -USR1 waystt || (waystt --pipe-to ydotool type --file - &)
+bind = SUPER, R, exec, pgrep -x waystt >/dev/null && pkill --signal SIGUSR1 waystt || (waystt --pipe-to ydotool type --file - &)
 
 # waystt - Speech to Text (clipboard copy)  
-bind = SUPER SHIFT, R, exec, pgrep -x waystt >/dev/null && pkill -USR1 waystt || (waystt --pipe-to wl-copy &)
+bind = SUPER SHIFT, R, exec, pgrep -x waystt >/dev/null && pkill --signal SIGUSR1 waystt || (waystt --pipe-to wl-copy &)
 ```
 
-These keybindings will:
-- **Super+R**: Start waystt with output piped to ydotool for direct typing, or send SIGUSR1 if already running
-- **Super+Shift+R**: Start waystt with output piped to clipboard, or send SIGUSR1 if already running
+### Niri
+
+Add to your `~/.config/niri/config.kdl`:
+
+```kdl
+binds {
+    // waystt - Speech to Text (direct typing)
+    Mod+R { spawn "sh" "-c" "pgrep -x waystt >/dev/null && pkill --signal SIGUSR1 waystt || (waystt --pipe-to ydotool type --file - &)"; }
+    
+    // waystt - Speech to Text (clipboard copy)
+    Mod+Shift+R { spawn "sh" "-c" "pgrep -x waystt >/dev/null && pkill --signal SIGUSR1 waystt || (waystt --pipe-to wl-copy &)"; }
+}
+```
+
+**Keybinding Functions:**
+- **Super+R** (Hyprland) / **Mod+R** (Niri): Direct typing via ydotool
+- **Super+Shift+R** (Hyprland) / **Mod+Shift+R** (Niri): Copy to clipboard
 
 ## Usage Examples
 
@@ -151,19 +192,6 @@ waystt --pipe-to sh -c "echo \"$(date): $(cat)\" >> speech-log.txt"
 pkill --signal SIGUSR1 waystt
 ```
 
-### Niri
-
-Add to your `~/.config/niri/config.kdl`:
-
-```kdl
-binds {
-    // waystt - Speech to Text (direct typing)
-    Mod+R { spawn "sh" "-c" "pgrep -x waystt >/dev/null && pkill -USR1 waystt || (waystt --pipe-to ydotool type --file - &)"; }
-    
-    // waystt - Speech to Text (clipboard copy)
-    Mod+Shift+R { spawn "sh" "-c" "pgrep -x waystt >/dev/null && pkill -USR1 waystt || (waystt --pipe-to wl-copy &)"; }
-}
-```
 
 ## Configuration
 

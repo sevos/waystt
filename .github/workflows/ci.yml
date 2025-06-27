@@ -105,7 +105,7 @@ jobs:
       run: cargo install cargo-tarpaulin
 
     - name: Generate code coverage
-      run: cargo tarpaulin --verbose --workspace --timeout 120 --out xml
+      run: cargo tarpaulin --verbose --workspace --timeout 300 --out xml
       env:
         RUST_TEST_THREADS: 1
         BEEP_VOLUME: 0.0

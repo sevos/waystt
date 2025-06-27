@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2025-06-27
+
+### BREAKING CHANGES
+- **Architecture Simplification**: Removed clipboard functionality and dual-mode operation
+- **Signal Handling**: Removed SIGUSR2 signal handling - now only SIGUSR1 for stdout output
+- **Dependencies**: Removed ydotool and wl-clipboard integration
+- **API**: Removed clipboard-related configuration options and functionality
+
+### Added
+- **Command Piping**: New `--pipe-to` flag for piping transcribed text to external commands
+- **Stdout Architecture**: Simplified stdout-only workflow for better integration with shell tools
+- **Test Infrastructure**: Enhanced test mutex patterns for environment variable safety
+- **AUR Support**: Added AUR installation documentation
+
+### Changed
+- **Output Method**: Transcribed text now outputs to stdout instead of clipboard/typing
+- **Error Handling**: Debug output now uses stderr to avoid interfering with stdout
+- **Documentation**: Updated README with stdout-only workflow examples and keybinding patterns
+
+### Fixed
+- **CI/CD**: Fixed test environment audio device access issues
+- **Dependencies**: Removed unused thiserror dependency
+- **Formatting**: Applied consistent cargo fmt formatting across codebase
+
+### Removed
+- **Clipboard Module**: Removed entire clipboard.rs and related functionality
+- **Dual Mode**: No longer supports both typing and clipboard modes
+- **ydotool Integration**: Removed direct text typing capabilities
+- **wl-clipboard**: Removed Wayland clipboard dependencies
+
 ## [0.1.3] - 2025-06-27
 
 ### Fixed

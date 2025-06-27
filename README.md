@@ -67,7 +67,7 @@ paru -S waystt-bin
 2. Install:
 
 ```bash
-wget https://github.com/sevos/waystt/releases/download/v0.1.1/waystt-linux-x86_64
+wget https://github.com/sevos/waystt/releases/latest/download/waystt-linux-x86_64
 mkdir -p ~/.local/bin
 mv waystt-linux-x86_64 ~/.local/bin/waystt
 chmod +x ~/.local/bin/waystt

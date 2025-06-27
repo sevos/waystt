@@ -13,14 +13,13 @@
 use anyhow::Result;
 use clap::Parser;
 use futures::stream::StreamExt;
-use signal_hook::consts::{SIGTERM, SIGUSR1, SIGUSR2};
+use signal_hook::consts::{SIGTERM, SIGUSR1};
 use signal_hook_tokio::Signals;
 use std::path::PathBuf;
 
 mod audio;
 mod audio_processing;
 mod beep;
-mod clipboard;
 mod config;
 mod transcription;
 mod wav;
@@ -30,7 +29,6 @@ mod test_utils;
 use audio::AudioRecorder;
 use audio_processing::AudioProcessor;
 use beep::{BeepConfig, BeepPlayer, BeepType};
-use clipboard::ClipboardManager;
 use config::Config;
 use transcription::{TranscriptionError, TranscriptionFactory};
 use wav::WavEncoder;
@@ -56,7 +54,6 @@ fn get_default_config_path() -> PathBuf {
 async fn process_audio_for_transcription(
     audio_data: Vec<f32>,
     sample_rate: u32,
-    action: &str,
     config: &Config,
 ) -> Result<()> {
     // Initialize beep player
@@ -66,8 +63,7 @@ async fn process_audio_for_transcription(
     };
     let beep_player = BeepPlayer::new(beep_config)?;
     eprintln!(
-        "Processing audio for {}: {} samples",
-        action,
+        "Processing audio: {} samples",
         audio_data.len()
     );
 
@@ -121,97 +117,12 @@ async fn process_audio_for_transcription(
 
                             eprintln!("Transcription successful: \"{}\"", transcribed_text);
 
-                            // Initialize clipboard manager
-                            let mut clipboard_manager = ClipboardManager::new().map_err(|e| {
-                                anyhow::anyhow!("Failed to initialize clipboard: {}", e)
-                            })?;
-
-                            match action {
-                                "type" => {
-                                    // SIGUSR1: Type text directly using ydotool
-                                    match clipboard_manager.type_text_directly(&transcribed_text) {
-                                        Ok(()) => {
-                                            eprintln!(
-                                                "✅ Text typed successfully: \"{}\"",
-                                                transcribed_text
-                                            );
-                                            // Play success beep after successful typing
-                                            if let Err(e) =
-                                                beep_player.play_async(BeepType::Success).await
-                                            {
-                                                eprintln!(
-                                                    "Warning: Failed to play success beep: {}",
-                                                    e
-                                                );
-                                            }
-                                        }
-                                        Err(e) => {
-                                            eprintln!("❌ Failed to type text: {}", e);
-                                            // Play error beep on typing failure
-                                            if let Err(beep_err) =
-                                                beep_player.play_async(BeepType::Error).await
-                                            {
-                                                eprintln!(
-                                                    "Warning: Failed to play error beep: {}",
-                                                    beep_err
-                                                );
-                                            }
-                                            return Err(anyhow::anyhow!(
-                                                "Text typing failed: {}",
-                                                e
-                                            ));
-                                        }
-                                    }
-                                }
-                                "copy" => {
-                                    // SIGUSR2: Copy to clipboard only (with persistence)
-                                    match clipboard_manager.copy_text_persistent(&transcribed_text)
-                                    {
-                                        Ok(()) => {
-                                            eprintln!(
-                                                "✅ Text copied to persistent clipboard: \"{}\"",
-                                                transcribed_text
-                                            );
-                                            eprintln!("💡 Paste manually with Ctrl+V when ready");
-                                            eprintln!(
-                                                "💡 Clipboard data will persist after app exits"
-                                            );
-                                            // Play success beep after successful clipboard operation
-                                            if let Err(e) =
-                                                beep_player.play_async(BeepType::Success).await
-                                            {
-                                                eprintln!(
-                                                    "Warning: Failed to play success beep: {}",
-                                                    e
-                                                );
-                                            }
-                                        }
-                                        Err(e) => {
-                                            eprintln!("❌ Failed to copy to clipboard: {}", e);
-                                            eprintln!(
-                                                "💡 Setup instructions: {}",
-                                                ClipboardManager::get_setup_instructions()
-                                            );
-                                            // Play error beep on clipboard failure
-                                            if let Err(beep_err) =
-                                                beep_player.play_async(BeepType::Error).await
-                                            {
-                                                eprintln!(
-                                                    "Warning: Failed to play error beep: {}",
-                                                    beep_err
-                                                );
-                                            }
-                                            return Err(anyhow::anyhow!(
-                                                "Clipboard operation failed: {}",
-                                                e
-                                            ));
-                                        }
-                                    }
-                                }
-                                _ => {
-                                    eprintln!("❌ Unknown action: {}", action);
-                                    eprintln!("Transcribed text: \"{}\"", transcribed_text);
-                                }
+                            // Output transcribed text to stdout
+                            println!("{}", transcribed_text);
+                            
+                            // Play success beep after successful transcription
+                            if let Err(e) = beep_player.play_async(BeepType::Success).await {
+                                eprintln!("Warning: Failed to play success beep: {}", e);
                             }
                         }
                         Err(e) => {
@@ -346,9 +257,9 @@ async fn main() -> Result<()> {
     // Give PipeWire a moment to start capturing
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
-    let mut signals = Signals::new([SIGUSR1, SIGUSR2, SIGTERM])?;
+    let mut signals = Signals::new([SIGUSR1, SIGTERM])?;
 
-    eprintln!("Ready. Send SIGUSR1 to transcribe and type, or SIGUSR2 to transcribe and copy.");
+    eprintln!("Ready. Send SIGUSR1 to transcribe and output to stdout.");
 
     // Main event loop - process audio and wait for signals
     loop {
@@ -362,7 +273,7 @@ async fn main() -> Result<()> {
             Ok(Some(signal)) => {
                 match signal {
                     SIGUSR1 => {
-                        eprintln!("Received SIGUSR1: Stop recording, transcribe, and type");
+                        eprintln!("Received SIGUSR1: Stop recording, transcribe, and output");
 
                         // Stop recording
                         if let Err(e) = recorder.stop_recording() {
@@ -389,54 +300,7 @@ async fn main() -> Result<()> {
                                 if let Err(e) = process_audio_for_transcription(
                                     audio_data,
                                     16000, // Using fixed sample rate from audio module
-                                    "type", &config,
-                                )
-                                .await
-                                {
-                                    eprintln!("Audio processing failed: {}", e);
-                                }
-
-                                // Clear buffer to free memory
-                                if let Err(e) = recorder.clear_buffer() {
-                                    eprintln!("Failed to clear audio buffer: {}", e);
-                                }
-                            }
-                            Err(e) => {
-                                eprintln!("Failed to get audio data: {}", e);
-                            }
-                        }
-
-                        break;
-                    }
-                    SIGUSR2 => {
-                        eprintln!("Received SIGUSR2: Stop recording, transcribe, and copy");
-
-                        // Stop recording
-                        if let Err(e) = recorder.stop_recording() {
-                            eprintln!("Failed to stop recording: {}", e);
-                        } else {
-                            // Play recording stop beep
-                            if let Err(e) = beep_player.play_async(BeepType::RecordingStop).await {
-                                eprintln!("Warning: Failed to play recording stop beep: {}", e);
-                            }
-                        }
-
-                        // Get recorded audio data and process it
-                        match recorder.get_audio_data() {
-                            Ok(audio_data) => {
-                                let duration =
-                                    recorder.get_recording_duration_seconds().unwrap_or(0.0);
-                                eprintln!(
-                                    "Captured {} audio samples ({:.2} seconds)",
-                                    audio_data.len(),
-                                    duration
-                                );
-
-                                // Process audio for transcription
-                                if let Err(e) = process_audio_for_transcription(
-                                    audio_data,
-                                    16000, // Using fixed sample rate from audio module
-                                    "copy", &config,
+                                    &config,
                                 )
                                 .await
                                 {
@@ -521,7 +385,7 @@ mod tests {
     #[tokio::test]
     async fn test_audio_processing_pipeline_empty_audio() {
         let test_config = Config::default();
-        let result = process_audio_for_transcription(vec![], 16000, "test", &test_config).await;
+        let result = process_audio_for_transcription(vec![], 16000, &test_config).await;
 
         assert!(
             result.is_err(),
@@ -536,7 +400,7 @@ mod tests {
 
         let test_config = Config::default();
         let result =
-            process_audio_for_transcription(short_audio, 16000, "test", &test_config).await;
+            process_audio_for_transcription(short_audio, 16000, &test_config).await;
 
         assert!(
             result.is_err(),
@@ -551,7 +415,7 @@ mod tests {
 
         let test_config = Config::default();
         let result =
-            process_audio_for_transcription(silent_audio, 16000, "test", &test_config).await;
+            process_audio_for_transcription(silent_audio, 16000, &test_config).await;
 
         assert!(
             result.is_err(),
@@ -692,7 +556,7 @@ mod tests {
         ];
 
         for (audio_data, description) in test_cases {
-            let result = process_audio_for_transcription(audio_data, 16000, "test", &config).await;
+            let result = process_audio_for_transcription(audio_data, 16000, &config).await;
 
             assert!(result.is_err(), "Should fail for {}", description);
         }
@@ -722,21 +586,4 @@ mod tests {
         assert!(config.validate().is_err());
     }
 
-    #[test]
-    fn test_signal_action_validation() {
-        // Test that we handle different action types correctly
-        let valid_actions = vec!["type", "copy"];
-        let invalid_actions = vec!["invalid", "", "TYPE", "COPY"];
-
-        for valid_action in valid_actions {
-            // Actions are processed in process_audio_for_transcription
-            // This test validates the action string handling logic
-            assert!(matches!(valid_action, "type" | "copy"));
-        }
-
-        for invalid_action in invalid_actions {
-            // Invalid actions should not match our expected patterns
-            assert!(!matches!(invalid_action, "type" | "copy"));
-        }
-    }
 }

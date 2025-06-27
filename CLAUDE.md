@@ -1,8 +1,7 @@
 ## Project Overview
 
-waystt is a Wayland speech-to-text tool with dual output modes:
-- **SIGUSR1**: Direct text typing via ydotool (immediate insertion at cursor)
-- **SIGUSR2**: Clipboard copy with persistent daemon for manual pasting
+waystt is a Wayland speech-to-text tool that outputs transcribed text to stdout:
+- **SIGUSR1**: Transcribe audio and output text to stdout (for piping to other tools)
 
 ## Audio Feedback System
 
@@ -29,11 +28,10 @@ Configuration:
   - Listen for "ding dong" sound confirming recording started
   - Ask the user to speak something
   - Wait 5 seconds
-  - Run `pkill --signal SIGUSR1 waystt` to trigger transcription and direct typing
-  - OR run `pkill --signal SIGUSR2 waystt` to trigger transcription and clipboard copy
+  - Run `pkill --signal SIGUSR1 waystt` to trigger transcription and stdout output
   - Listen for "dong ding" (recording stopped) then "ding ding" (success) sounds
   - Check logs with `tail /tmp/waystt.log`
-- Future improvement: Ask user to press RETURN, as their focus will likely be on the Claude Code terminal, which will send the transcribed text to the agent
+  - The transcribed text will be output to stdout and can be captured or piped to other tools
 
 ## Configuration Files
 
@@ -41,7 +39,6 @@ Key files for future development:
 - `src/main.rs`: Main application logic, signal handling, audio feedback integration
 - `src/beep.rs`: Musical audio feedback system with CPAL
 - `src/audio.rs`: Audio recording via PipeWire/CPAL
-- `src/clipboard.rs`: Clipboard operations and ydotool integration
 - `src/config.rs`: Environment variable configuration
 - `src/whisper.rs`: OpenAI Whisper API client
 - `.env.example`: Configuration template

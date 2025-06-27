@@ -2,7 +2,7 @@
 name = "waystt"
 version = "0.1.3"
 edition = "2021"
-description = "Speech-to-text tool for Wayland"
+description = "Speech-to-text tool for Wayland with stdout output"
 license = "GPL-3.0-or-later"
 authors = ["Artur Roszczyk <artur.roszczyk@gmail.com>"]
 
@@ -21,8 +21,6 @@ dirs = "5.0"
 # Audio capture
 cpal = "0.15"
 
-# Wayland clipboard integration
-wl-clipboard-rs = "0.8"
 
 # JSON parsing for API responses
 serde_json = "1.0"
@@ -35,8 +33,6 @@ thiserror = "1.0"
 # Async trait support
 async-trait = "0.1"
 
-# System interface for clipboard daemon
-libc = "0.2"
 
 # Google Cloud Speech-to-Text (using google-api-proto instead of google-speech1)
 google-api-proto = { version = "1.710", features = ["google-cloud-speech-v2"] }

@@ -105,39 +105,49 @@ Add to your `~/.config/hypr/hyprland.conf`:
 
 ```bash
 # waystt - Speech to Text (direct typing)
-bind = SUPER, R, exec, pgrep -x waystt >/dev/null && pkill -USR1 waystt || (waystt | ydotool type --file - &)
+bind = SUPER, R, exec, pgrep -x waystt >/dev/null && pkill -USR1 waystt || (waystt --pipe-to ydotool type --file - &)
 
 # waystt - Speech to Text (clipboard copy)  
-bind = SUPER SHIFT, R, exec, pgrep -x waystt >/dev/null && pkill -USR1 waystt || (waystt | wl-copy &)
+bind = SUPER SHIFT, R, exec, pgrep -x waystt >/dev/null && pkill -USR1 waystt || (waystt --pipe-to wl-copy &)
 ```
 
 These keybindings will:
-- **Super+R**: Start waystt piped to ydotool for direct typing, or send SIGUSR1 if already running
-- **Super+Shift+R**: Start waystt piped to clipboard, or send SIGUSR1 if already running
+- **Super+R**: Start waystt with output piped to ydotool for direct typing, or send SIGUSR1 if already running
+- **Super+Shift+R**: Start waystt with output piped to clipboard, or send SIGUSR1 if already running
 
 ## Usage Examples
 
 waystt starts on-demand, records audio, transcribes it, outputs to stdout, then exits:
 
+### Basic Usage (stdout)
+
 ```bash
-# Terminal 1: Start waystt with output piped to desired destination
+# Terminal 1: Start waystt with output to file
 waystt > transcription.txt
 
 # Terminal 2: Trigger transcription (or use keyboard shortcut)
 pkill --signal SIGUSR1 waystt
+```
 
-# Alternative: Copy to clipboard
-# Terminal 1:
-waystt | wl-copy
+### Using --pipe-to Option
 
-# Terminal 2:
+The `--pipe-to` option allows you to pipe transcribed text directly to another command:
+
+```bash
+# Copy transcription to clipboard
+waystt --pipe-to wl-copy
 pkill --signal SIGUSR1 waystt
 
-# Process transcription with other tools
-# Terminal 1:
-waystt | sed 's/hello/hi/g' | wl-copy
+# Type transcription directly into focused window
+waystt --pipe-to ydotool type --file -
+pkill --signal SIGUSR1 waystt
 
-# Terminal 2:
+# Process transcription with sed and copy to clipboard
+waystt --pipe-to sh -c "sed 's/hello/hi/g' | wl-copy"
+pkill --signal SIGUSR1 waystt
+
+# Save to file with timestamp
+waystt --pipe-to sh -c "echo \"$(date): $(cat)\" >> speech-log.txt"
 pkill --signal SIGUSR1 waystt
 ```
 
@@ -148,10 +158,10 @@ Add to your `~/.config/niri/config.kdl`:
 ```kdl
 binds {
     // waystt - Speech to Text (direct typing)
-    Mod+R { spawn "sh" "-c" "pgrep -x waystt >/dev/null && pkill -USR1 waystt || (waystt | ydotool type --file - &)"; }
+    Mod+R { spawn "sh" "-c" "pgrep -x waystt >/dev/null && pkill -USR1 waystt || (waystt --pipe-to ydotool type --file - &)"; }
     
     // waystt - Speech to Text (clipboard copy)
-    Mod+Shift+R { spawn "sh" "-c" "pgrep -x waystt >/dev/null && pkill -USR1 waystt || (waystt | wl-copy &)"; }
+    Mod+Shift+R { spawn "sh" "-c" "pgrep -x waystt >/dev/null && pkill -USR1 waystt || (waystt --pipe-to wl-copy &)"; }
 }
 ```
 

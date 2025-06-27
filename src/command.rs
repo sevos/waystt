@@ -60,6 +60,7 @@ mod tests {
     use crate::test_utils::ENV_MUTEX;
 
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
     async fn test_execute_with_input_success() {
         let _lock = ENV_MUTEX.lock().unwrap();
         
@@ -75,6 +76,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
     async fn test_execute_with_input_empty_command() {
         let _lock = ENV_MUTEX.lock().unwrap();
         
@@ -88,6 +90,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
     async fn test_execute_with_input_nonexistent_command() {
         let _lock = ENV_MUTEX.lock().unwrap();
         
@@ -101,6 +104,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
     async fn test_execute_with_input_command_with_args() {
         let _lock = ENV_MUTEX.lock().unwrap();
         
@@ -116,6 +120,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
     async fn test_execute_with_input_command_failure() {
         let _lock = ENV_MUTEX.lock().unwrap();
         

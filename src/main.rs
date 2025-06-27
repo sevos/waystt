@@ -48,10 +48,10 @@ struct Args {
     envfile: Option<PathBuf>,
     
     /// Pipe transcribed text to the specified command
-    /// Usage: waystt --pipe-to -- command args
-    /// Example: waystt --pipe-to -- wl-copy
-    /// Example: waystt --pipe-to -- ydotool type --file -
-    #[arg(long, short = 'p', num_args = 1.., value_name = "COMMAND")]
+    /// Usage: waystt --pipe-to command args
+    /// Example: waystt --pipe-to wl-copy
+    /// Example: waystt --pipe-to ydotool type --file -
+    #[arg(long, short = 'p', num_args = 1.., value_name = "COMMAND", allow_hyphen_values = true, trailing_var_arg = true)]
     pipe_to: Option<Vec<String>>,
 }
 
@@ -648,6 +648,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
     async fn test_pipe_to_functionality_with_command() {
         use crate::test_utils::ENV_MUTEX;
         
@@ -665,6 +666,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
     async fn test_pipe_to_functionality_with_failing_command() {
         use crate::test_utils::ENV_MUTEX;
         
@@ -682,6 +684,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
     async fn test_pipe_to_functionality_with_nonexistent_command() {
         use crate::test_utils::ENV_MUTEX;
         

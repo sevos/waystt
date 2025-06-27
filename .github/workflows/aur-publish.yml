@@ -42,6 +42,11 @@ jobs:
         echo "Generated PKGBUILD:"
         cat PKGBUILD
 
+    - name: Setup SSH known hosts for AUR
+      run: |
+        mkdir -p ~/.ssh
+        ssh-keyscan -t ed25519 aur.archlinux.org >> ~/.ssh/known_hosts
+
     - name: Publish to AUR
       uses: KSXGitHub/github-actions-deploy-aur@v2.7.1
       with:

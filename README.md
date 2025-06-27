@@ -35,6 +35,15 @@ sudo usermod -a -G input $USER
 
 ## Installation
 
+### From AUR (Arch Linux)
+
+```bash
+# Using your preferred AUR helper
+yay -S waystt-bin
+# or
+paru -S waystt-bin
+```
+
 ### Download Binary
 
 1. Download from [GitHub Releases](https://github.com/sevos/waystt/releases)
@@ -106,6 +115,12 @@ binds {
 ```
 
 ## Configuration
+
+Configuration is read from `~/.config/waystt/.env` by default. You can override this location using the `--envfile` flag:
+
+```bash
+waystt --envfile /path/to/custom/.env
+```
 
 waystt supports two transcription providers: **OpenAI Whisper** (default) and **Google Speech-to-Text**. Choose the one that best fits your needs.
 
@@ -236,7 +251,11 @@ cargo test
 ### Running with Debug Output
 
 ```bash
+# Using default config location (~/.config/waystt/.env)
 RUST_LOG=debug cargo run
+
+# Or using project-local .env file for development
+RUST_LOG=debug cargo run -- --envfile .env
 ```
 
 ## Building from Source
@@ -244,17 +263,18 @@ RUST_LOG=debug cargo run
 ```bash
 git clone https://github.com/sevos/waystt.git
 cd waystt
-cp .env.example .env
-# Edit .env with your API key
+
+# Create config directory and copy example configuration
+mkdir -p ~/.config/waystt
+cp .env.example ~/.config/waystt/.env
+# Edit ~/.config/waystt/.env with your API key
+
+# Build the project
 cargo build --release
 
 # Install to local bin
 mkdir -p ~/.local/bin
 cp ./target/release/waystt ~/.local/bin/
-
-# Create config
-mkdir -p ~/.config/waystt
-cp .env ~/.config/waystt/
 ```
 
 ## License

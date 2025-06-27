@@ -100,10 +100,7 @@ impl TranscriptionFactory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Mutex;
-
-    // Use the same mutex as config tests to prevent race conditions
-    static ENV_MUTEX: Mutex<()> = Mutex::new(());
+    use crate::test_utils::ENV_MUTEX;
 
     #[test]
     fn test_transcription_error_display() {
@@ -169,6 +166,9 @@ mod tests {
         let result = provider.transcribe_with_language(empty_audio, None).await;
         // We expect this to fail with network/auth error, but it should compile and run
         assert!(result.is_err());
+
+        // Cleanup
+        std::env::remove_var("OPENAI_API_KEY");
     }
 
     #[tokio::test]
@@ -213,10 +213,7 @@ mod tests {
         }
 
         // Cleanup
-        {
-            let _lock = ENV_MUTEX.lock().unwrap();
-            std::env::remove_var("OPENAI_API_KEY");
-        }
+        std::env::remove_var("OPENAI_API_KEY");
     }
 
     #[tokio::test]
@@ -235,9 +232,6 @@ mod tests {
         assert!(provider.is_ok());
 
         // Cleanup
-        {
-            let _lock = ENV_MUTEX.lock().unwrap();
-            std::env::remove_var("OPENAI_API_KEY");
-        }
+        std::env::remove_var("OPENAI_API_KEY");
     }
 }

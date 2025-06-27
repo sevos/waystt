@@ -1,6 +1,6 @@
 [package]
 name = "waystt"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "Speech-to-text tool for Wayland"
 license = "GPL-3.0-or-later"
@@ -16,6 +16,7 @@ signal-hook-tokio = { version = "0.3", features = ["futures-v0_3"] }
 futures = "0.3"
 clap = { version = "4.0", features = ["derive"] }
 dotenvy = "0.15"
+dirs = "5.0"
 
 # Audio capture
 cpal = "0.15"

@@ -209,13 +209,10 @@ pub fn load_config() -> Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::ENV_MUTEX;
     use std::env;
     use std::io::Write;
-    use std::sync::Mutex;
     use tempfile::NamedTempFile;
-
-    // Mutex to ensure tests that modify environment variables run sequentially
-    static ENV_MUTEX: Mutex<()> = Mutex::new(());
 
     // Helper function to clear all waystt environment variables
     fn clear_env_vars() {

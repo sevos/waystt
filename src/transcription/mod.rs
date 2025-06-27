@@ -100,10 +100,7 @@ impl TranscriptionFactory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Mutex;
-
-    // Use the same mutex as config tests to prevent race conditions
-    static ENV_MUTEX: Mutex<()> = Mutex::new(());
+    use crate::test_utils::ENV_MUTEX;
 
     #[test]
     fn test_transcription_error_display() {
@@ -137,10 +134,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_factory_openai_provider_missing_key() {
-        {
-            let _lock = ENV_MUTEX.lock().unwrap();
-            std::env::remove_var("OPENAI_API_KEY");
-        }
+        let _lock = ENV_MUTEX.lock().unwrap();
+
+        std::env::remove_var("OPENAI_API_KEY");
 
         let result = TranscriptionFactory::create_provider("openai").await;
         assert!(result.is_err());
@@ -154,10 +150,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_factory_openai_provider_creation() {
-        {
-            let _lock = ENV_MUTEX.lock().unwrap();
-            std::env::set_var("OPENAI_API_KEY", "test-key");
-        }
+        let _lock = ENV_MUTEX.lock().unwrap();
+
+        std::env::set_var("OPENAI_API_KEY", "test-key");
 
         let result = TranscriptionFactory::create_provider("openai").await;
         assert!(result.is_ok());
@@ -169,14 +164,16 @@ mod tests {
         let result = provider.transcribe_with_language(empty_audio, None).await;
         // We expect this to fail with network/auth error, but it should compile and run
         assert!(result.is_err());
+
+        // Cleanup
+        std::env::remove_var("OPENAI_API_KEY");
     }
 
     #[tokio::test]
     async fn test_factory_google_provider_missing_credentials() {
-        {
-            let _lock = ENV_MUTEX.lock().unwrap();
-            std::env::remove_var("GOOGLE_APPLICATION_CREDENTIALS");
-        }
+        let _lock = ENV_MUTEX.lock().unwrap();
+
+        std::env::remove_var("GOOGLE_APPLICATION_CREDENTIALS");
 
         let result = TranscriptionFactory::create_provider("google").await;
         assert!(result.is_err());
@@ -190,10 +187,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_provider_switching_integration() {
-        {
-            let _lock = ENV_MUTEX.lock().unwrap();
-            std::env::set_var("OPENAI_API_KEY", "test-key");
-        }
+        let _lock = ENV_MUTEX.lock().unwrap();
+
+        std::env::set_var("OPENAI_API_KEY", "test-key");
 
         // Test case sensitivity
         let result = TranscriptionFactory::create_provider("OpenAI").await;
@@ -213,20 +209,16 @@ mod tests {
         }
 
         // Cleanup
-        {
-            let _lock = ENV_MUTEX.lock().unwrap();
-            std::env::remove_var("OPENAI_API_KEY");
-        }
+        std::env::remove_var("OPENAI_API_KEY");
     }
 
     #[tokio::test]
     async fn test_backward_compatibility_with_existing_config() {
-        {
-            let _lock = ENV_MUTEX.lock().unwrap();
-            // This test ensures that existing .env configurations continue to work
-            std::env::set_var("OPENAI_API_KEY", "test-key");
-            std::env::remove_var("TRANSCRIPTION_PROVIDER"); // Default should be openai
-        }
+        let _lock = ENV_MUTEX.lock().unwrap();
+
+        // This test ensures that existing .env configurations continue to work
+        std::env::set_var("OPENAI_API_KEY", "test-key");
+        std::env::remove_var("TRANSCRIPTION_PROVIDER"); // Default should be openai
 
         let config = crate::config::load_config();
         assert_eq!(config.transcription_provider, "openai");
@@ -235,9 +227,6 @@ mod tests {
         assert!(provider.is_ok());
 
         // Cleanup
-        {
-            let _lock = ENV_MUTEX.lock().unwrap();
-            std::env::remove_var("OPENAI_API_KEY");
-        }
+        std::env::remove_var("OPENAI_API_KEY");
     }
 }

@@ -1,12 +1,12 @@
 # waystt - Wayland Speech-to-Text Tool
 
-Press a keybind, speak, and get instant text output. A background speech-to-text tool that transcribes audio using OpenAI Whisper and either types directly or copies to clipboard.
+Press a keybind, speak, and get instant text output. A speech-to-text tool that transcribes audio using OpenAI Whisper and outputs to stdout.
 
 ## Features
 
 - **Signal-driven**: Press keybind → speak → get text (no GUI needed)
-- **Dual output modes**: Direct typing or clipboard copy
-- **Background operation**: Runs continuously, always ready
+- **UNIX philosophy**: Outputs transcribed text to stdout for piping to other tools
+- **On-demand operation**: Starts when called, processes audio, then exits
 - **Audio feedback**: Beeps confirm recording start/stop and success
 - **Wayland native**: Works with modern Linux desktops (Hyprland, Niri, etc.)
 
@@ -18,19 +18,36 @@ Press a keybind, speak, and get instant text output. A background speech-to-text
 
 ```bash
 # Arch Linux
-sudo pacman -S pipewire ydotool wtype
+sudo pacman -S pipewire
 
 # Ubuntu/Debian  
-sudo apt install pipewire-pulse ydotool wtype
+sudo apt install pipewire-pulse
 
 # Fedora
-sudo dnf install pipewire-pulseaudio ydotool wtype
+sudo dnf install pipewire-pulseaudio
 ```
 
-**Setup ydotool permissions:**
+**Optional (for direct typing keybindings):**
 ```bash
+# Arch Linux
+sudo pacman -S ydotool
+
+# Ubuntu/Debian  
+sudo apt install ydotool
+
+# Fedora
+sudo dnf install ydotool
+
+# Setup ydotool permissions and service:
 sudo usermod -a -G input $USER
-# Log out and back in
+
+# Enable and start ydotool daemon service
+sudo systemctl enable --now ydotool.service
+
+# Set socket environment variable (add to ~/.bashrc or ~/.zshrc)
+echo 'export YDOTOOL_SOCKET=/tmp/.ydotool_socket' >> ~/.bashrc
+
+# Log out and back in (or source ~/.bashrc)
 ```
 
 ## Installation
@@ -68,26 +85,44 @@ mkdir -p ~/.config/waystt
 echo "OPENAI_API_KEY=your_api_key_here" > ~/.config/waystt/.env
 ```
 
-2. **Start the service:**
-
-**If installed via AUR:**
+2. **Test the application:**
 ```bash
-nohup waystt > /tmp/waystt.log 2>&1 & disown
-```
-
-**If installed manually to ~/.local/bin:**
-```bash
-nohup ~/.local/bin/waystt > /tmp/waystt.log 2>&1 & disown
+# Run waystt and pipe output to see it working
+waystt | tee /tmp/waystt-output.txt
 ```
 
 3. **Use with signals:**
 ```bash
-# Direct typing mode
+# Transcribe and output to stdout
 pkill --signal SIGUSR1 waystt
-
-# Clipboard mode  
-pkill --signal SIGUSR2 waystt
 ```
+
+## Quick Reference
+
+### Common Commands
+
+```bash
+# Start waystt and save output to file
+waystt > output.txt
+
+# Start waystt and copy output to clipboard
+waystt --pipe-to wl-copy
+
+# Start waystt and type output directly
+waystt --pipe-to ydotool type --file -
+
+# Trigger transcription (if waystt is running)
+pkill --signal SIGUSR1 waystt
+```
+
+### Keybinding Pattern
+
+Most keybindings follow this pattern:
+```bash
+pgrep -x waystt >/dev/null && pkill --signal SIGUSR1 waystt || (waystt [OPTIONS] &)
+```
+
+This means: "If waystt is running, send signal to transcribe. Otherwise, start waystt with specified options."
 
 ## Keyboard Shortcuts Setup
 
@@ -95,53 +130,68 @@ pkill --signal SIGUSR2 waystt
 
 Add to your `~/.config/hypr/hyprland.conf`:
 
-**If installed via AUR:**
 ```bash
 # waystt - Speech to Text (direct typing)
-bind = SUPER, R, exec, pgrep -x waystt >/dev/null && pkill -USR1 waystt || waystt &
+bind = SUPER, R, exec, pgrep -x waystt >/dev/null && pkill --signal SIGUSR1 waystt || (waystt --pipe-to ydotool type --file - &)
 
 # waystt - Speech to Text (clipboard copy)  
-bind = SUPER SHIFT, R, exec, pgrep -x waystt >/dev/null && pkill -USR2 waystt || waystt &
+bind = SUPER SHIFT, R, exec, pgrep -x waystt >/dev/null && pkill --signal SIGUSR1 waystt || (waystt --pipe-to wl-copy &)
 ```
-
-**If installed manually to ~/.local/bin:**
-```bash
-# waystt - Speech to Text (direct typing)
-bind = SUPER, R, exec, pgrep -x waystt >/dev/null && pkill -USR1 waystt || ~/.local/bin/waystt &
-
-# waystt - Speech to Text (clipboard copy)  
-bind = SUPER SHIFT, R, exec, pgrep -x waystt >/dev/null && pkill -USR2 waystt || ~/.local/bin/waystt &
-```
-
-These keybindings will:
-- **Super+R**: Start waystt if not running, or send SIGUSR1 to transcribe and type directly
-- **Super+Shift+R**: Start waystt if not running, or send SIGUSR2 to transcribe and copy to clipboard
 
 ### Niri
 
 Add to your `~/.config/niri/config.kdl`:
 
-**If installed via AUR:**
 ```kdl
 binds {
     // waystt - Speech to Text (direct typing)
-    Mod+R { spawn "sh" "-c" "pgrep -x waystt >/dev/null && pkill -USR1 waystt || waystt &"; }
+    Mod+R { spawn "sh" "-c" "pgrep -x waystt >/dev/null && pkill --signal SIGUSR1 waystt || (waystt --pipe-to ydotool type --file - &)"; }
     
     // waystt - Speech to Text (clipboard copy)
-    Mod+Shift+R { spawn "sh" "-c" "pgrep -x waystt >/dev/null && pkill -USR2 waystt || waystt &"; }
+    Mod+Shift+R { spawn "sh" "-c" "pgrep -x waystt >/dev/null && pkill --signal SIGUSR1 waystt || (waystt --pipe-to wl-copy &)"; }
 }
 ```
 
-**If installed manually to ~/.local/bin:**
-```kdl
-binds {
-    // waystt - Speech to Text (direct typing)
-    Mod+R { spawn "sh" "-c" "pgrep -x waystt >/dev/null && pkill -USR1 waystt || ~/.local/bin/waystt &"; }
-    
-    // waystt - Speech to Text (clipboard copy)
-    Mod+Shift+R { spawn "sh" "-c" "pgrep -x waystt >/dev/null && pkill -USR2 waystt || ~/.local/bin/waystt &"; }
-}
+**Keybinding Functions:**
+- **Super+R** (Hyprland) / **Mod+R** (Niri): Direct typing via ydotool
+- **Super+Shift+R** (Hyprland) / **Mod+Shift+R** (Niri): Copy to clipboard
+
+## Usage Examples
+
+waystt starts on-demand, records audio, transcribes it, outputs to stdout, then exits:
+
+### Basic Usage (stdout)
+
+```bash
+# Terminal 1: Start waystt with output to file
+waystt > transcription.txt
+
+# Terminal 2: Trigger transcription (or use keyboard shortcut)
+pkill --signal SIGUSR1 waystt
 ```
+
+### Using --pipe-to Option
+
+The `--pipe-to` option allows you to pipe transcribed text directly to another command:
+
+```bash
+# Copy transcription to clipboard
+waystt --pipe-to wl-copy
+pkill --signal SIGUSR1 waystt
+
+# Type transcription directly into focused window
+waystt --pipe-to ydotool type --file -
+pkill --signal SIGUSR1 waystt
+
+# Process transcription with sed and copy to clipboard
+waystt --pipe-to sh -c "sed 's/hello/hi/g' | wl-copy"
+pkill --signal SIGUSR1 waystt
+
+# Save to file with timestamp
+waystt --pipe-to sh -c "echo \"$(date): $(cat)\" >> speech-log.txt"
+pkill --signal SIGUSR1 waystt
+```
+
 
 ## Configuration
 
@@ -242,18 +292,6 @@ If audio recording fails:
 - Check microphone permissions
 - Verify microphone is not muted
 
-### Text Input Issues
-
-If direct text typing (SIGUSR1) fails:
-- Ensure ydotool is installed and user is in input group
-- Check ydotool permissions: `sudo usermod -a -G input $USER` (requires re-login)
-- Verify ydotool daemon is running: `systemctl --user status ydotool`
-
-### Clipboard Issues
-
-If clipboard operations (SIGUSR2) fail:
-- Ensure you're running under Wayland: `echo $WAYLAND_DISPLAY`
-- Install wtype: Required for clipboard pasting functionality
 
 ### API Issues
 

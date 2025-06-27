@@ -100,7 +100,7 @@ impl TranscriptionFactory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::ENV_MUTEX;
+    use crate::test_utils::ASYNC_ENV_MUTEX;
 
     #[test]
     fn test_transcription_error_display() {
@@ -134,104 +134,160 @@ mod tests {
 
     #[tokio::test]
     async fn test_factory_openai_provider_missing_key() {
+        #[allow(clippy::await_holding_lock)]
         {
-            let _lock = ENV_MUTEX.lock().unwrap();
+            let _lock = ASYNC_ENV_MUTEX.lock().await;
+
+            // Save current state and set up test environment
+            let original_key = std::env::var("OPENAI_API_KEY").ok();
             std::env::remove_var("OPENAI_API_KEY");
-        }
 
-        let result = TranscriptionFactory::create_provider("openai").await;
-        assert!(result.is_err());
+            let result = TranscriptionFactory::create_provider("openai").await;
 
-        if let Err(TranscriptionError::ConfigurationError(msg)) = result {
-            assert!(msg.contains("OpenAI API key not found"));
-        } else {
-            panic!("Expected ConfigurationError for missing API key");
+            // Restore original state
+            if let Some(key) = original_key {
+                std::env::set_var("OPENAI_API_KEY", key);
+            } else {
+                std::env::remove_var("OPENAI_API_KEY");
+            }
+
+            assert!(result.is_err());
+
+            if let Err(TranscriptionError::ConfigurationError(msg)) = result {
+                assert!(msg.contains("OpenAI API key not found"));
+            } else {
+                panic!("Expected ConfigurationError for missing API key");
+            }
         }
     }
 
     #[tokio::test]
     async fn test_factory_openai_provider_creation() {
+        #[allow(clippy::await_holding_lock)]
         {
-            let _lock = ENV_MUTEX.lock().unwrap();
+            let _lock = ASYNC_ENV_MUTEX.lock().await;
+
+            // Save current state and set up test environment
+            let original_key = std::env::var("OPENAI_API_KEY").ok();
             std::env::set_var("OPENAI_API_KEY", "test-key");
+
+            let result = TranscriptionFactory::create_provider("openai").await;
+            assert!(result.is_ok());
+
+            let provider = result.unwrap();
+
+            // Test that the provider implements the trait
+            let empty_audio = vec![];
+            let result = provider.transcribe_with_language(empty_audio, None).await;
+            // We expect this to fail with network/auth error, but it should compile and run
+            assert!(result.is_err());
+
+            // Restore original state
+            if let Some(key) = original_key {
+                std::env::set_var("OPENAI_API_KEY", key);
+            } else {
+                std::env::remove_var("OPENAI_API_KEY");
+            }
         }
-
-        let result = TranscriptionFactory::create_provider("openai").await;
-        assert!(result.is_ok());
-
-        let provider = result.unwrap();
-
-        // Test that the provider implements the trait
-        let empty_audio = vec![];
-        let result = provider.transcribe_with_language(empty_audio, None).await;
-        // We expect this to fail with network/auth error, but it should compile and run
-        assert!(result.is_err());
-
-        // Cleanup
-        std::env::remove_var("OPENAI_API_KEY");
     }
 
     #[tokio::test]
     async fn test_factory_google_provider_missing_credentials() {
+        #[allow(clippy::await_holding_lock)]
         {
-            let _lock = ENV_MUTEX.lock().unwrap();
+            let _lock = ASYNC_ENV_MUTEX.lock().await;
+
+            // Save current state and set up test environment
+            let original_credentials = std::env::var("GOOGLE_APPLICATION_CREDENTIALS").ok();
             std::env::remove_var("GOOGLE_APPLICATION_CREDENTIALS");
-        }
 
-        let result = TranscriptionFactory::create_provider("google").await;
-        assert!(result.is_err());
+            let result = TranscriptionFactory::create_provider("google").await;
 
-        if let Err(TranscriptionError::ConfigurationError(msg)) = result {
-            assert!(msg.contains("Google application credentials not found"));
-        } else {
-            panic!("Expected ConfigurationError for missing credentials");
+            // Restore original state
+            if let Some(credentials) = original_credentials {
+                std::env::set_var("GOOGLE_APPLICATION_CREDENTIALS", credentials);
+            } else {
+                std::env::remove_var("GOOGLE_APPLICATION_CREDENTIALS");
+            }
+
+            assert!(result.is_err());
+
+            if let Err(TranscriptionError::ConfigurationError(msg)) = result {
+                assert!(msg.contains("Google application credentials not found"));
+            } else {
+                panic!("Expected ConfigurationError for missing credentials");
+            }
         }
     }
 
     #[tokio::test]
     async fn test_provider_switching_integration() {
+        #[allow(clippy::await_holding_lock)]
         {
-            let _lock = ENV_MUTEX.lock().unwrap();
+            let _lock = ASYNC_ENV_MUTEX.lock().await;
+
+            // Save current state and set up test environment
+            let original_key = std::env::var("OPENAI_API_KEY").ok();
             std::env::set_var("OPENAI_API_KEY", "test-key");
+
+            // Test case sensitivity
+            let result = TranscriptionFactory::create_provider("OpenAI").await;
+            assert!(result.is_ok());
+
+            let result = TranscriptionFactory::create_provider("OPENAI").await;
+            assert!(result.is_ok());
+
+            // Test that unsupported providers are handled correctly
+            let result = TranscriptionFactory::create_provider("unsupported_provider").await;
+            assert!(result.is_err());
+
+            if let Err(TranscriptionError::UnsupportedProvider(provider)) = result {
+                assert_eq!(provider, "unsupported_provider");
+            } else {
+                panic!("Expected UnsupportedProvider error");
+            }
+
+            // Restore original state
+            if let Some(key) = original_key {
+                std::env::set_var("OPENAI_API_KEY", key);
+            } else {
+                std::env::remove_var("OPENAI_API_KEY");
+            }
         }
-
-        // Test case sensitivity
-        let result = TranscriptionFactory::create_provider("OpenAI").await;
-        assert!(result.is_ok());
-
-        let result = TranscriptionFactory::create_provider("OPENAI").await;
-        assert!(result.is_ok());
-
-        // Test that unsupported providers are handled correctly
-        let result = TranscriptionFactory::create_provider("unsupported_provider").await;
-        assert!(result.is_err());
-
-        if let Err(TranscriptionError::UnsupportedProvider(provider)) = result {
-            assert_eq!(provider, "unsupported_provider");
-        } else {
-            panic!("Expected UnsupportedProvider error");
-        }
-
-        // Cleanup
-        std::env::remove_var("OPENAI_API_KEY");
     }
 
     #[tokio::test]
     async fn test_backward_compatibility_with_existing_config() {
+        #[allow(clippy::await_holding_lock)]
         {
-            let _lock = ENV_MUTEX.lock().unwrap();
+            let _lock = ASYNC_ENV_MUTEX.lock().await;
+
+            // Save current state and set up test environment
+            let original_key = std::env::var("OPENAI_API_KEY").ok();
+            let original_provider = std::env::var("TRANSCRIPTION_PROVIDER").ok();
+
             // This test ensures that existing .env configurations continue to work
             std::env::set_var("OPENAI_API_KEY", "test-key");
             std::env::remove_var("TRANSCRIPTION_PROVIDER"); // Default should be openai
+
+            let config = crate::config::load_config();
+            assert_eq!(config.transcription_provider, "openai");
+
+            let provider =
+                TranscriptionFactory::create_provider(&config.transcription_provider).await;
+            assert!(provider.is_ok());
+
+            // Restore original state
+            if let Some(key) = original_key {
+                std::env::set_var("OPENAI_API_KEY", key);
+            } else {
+                std::env::remove_var("OPENAI_API_KEY");
+            }
+            if let Some(provider) = original_provider {
+                std::env::set_var("TRANSCRIPTION_PROVIDER", provider);
+            } else {
+                std::env::remove_var("TRANSCRIPTION_PROVIDER");
+            }
         }
-
-        let config = crate::config::load_config();
-        assert_eq!(config.transcription_provider, "openai");
-
-        let provider = TranscriptionFactory::create_provider(&config.transcription_provider).await;
-        assert!(provider.is_ok());
-
-        // Cleanup
-        std::env::remove_var("OPENAI_API_KEY");
     }
 }

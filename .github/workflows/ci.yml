@@ -56,6 +56,8 @@ jobs:
       env:
         # Disable audio tests in CI environment
         RUST_TEST_THREADS: 1
+        BEEP_VOLUME: 0.0
+        CI: true
 
     - name: Build release
       run: cargo build --release --verbose
@@ -106,6 +108,8 @@ jobs:
       run: cargo tarpaulin --verbose --workspace --timeout 120 --out xml
       env:
         RUST_TEST_THREADS: 1
+        BEEP_VOLUME: 0.0
+        CI: true
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4

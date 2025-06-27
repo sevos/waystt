@@ -12,10 +12,14 @@
 
 use anyhow::Result;
 use clap::Parser;
-use futures::stream::StreamExt;
-use signal_hook::consts::{SIGTERM, SIGUSR1};
-use signal_hook_tokio::Signals;
 use std::path::PathBuf;
+
+#[cfg(not(test))]
+use futures::stream::StreamExt;
+#[cfg(not(test))]
+use signal_hook::consts::{SIGTERM, SIGUSR1};
+#[cfg(not(test))]
+use signal_hook_tokio::Signals;
 
 mod audio;
 mod audio_processing;
@@ -257,22 +261,24 @@ async fn main() -> Result<()> {
     // Give PipeWire a moment to start capturing
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
-    let mut signals = Signals::new([SIGUSR1, SIGTERM])?;
-
     eprintln!("Ready. Send SIGUSR1 to transcribe and output to stdout.");
 
     // Main event loop - process audio and wait for signals
-    loop {
-        // Process audio events to capture microphone data
-        if let Err(e) = recorder.process_audio_events() {
-            eprintln!("Error processing audio events: {}", e);
-        }
+    #[cfg(not(test))]
+    {
+        let mut signals = Signals::new([SIGUSR1, SIGTERM])?;
+        
+        loop {
+            // Process audio events to capture microphone data
+            if let Err(e) = recorder.process_audio_events() {
+                eprintln!("Error processing audio events: {}", e);
+            }
 
-        // Check for signals with timeout
-        match tokio::time::timeout(tokio::time::Duration::from_millis(50), signals.next()).await {
-            Ok(Some(signal)) => {
-                match signal {
-                    SIGUSR1 => {
+            // Check for signals with timeout
+            match tokio::time::timeout(tokio::time::Duration::from_millis(50), signals.next()).await {
+                Ok(Some(signal)) => {
+                    match signal {
+                        SIGUSR1 => {
                         eprintln!("Received SIGUSR1: Stop recording, transcribe, and output");
 
                         // Stop recording
@@ -335,17 +341,24 @@ async fn main() -> Result<()> {
                     _ => {
                         eprintln!("Received unexpected signal: {}", signal);
                     }
+                    }
+                }
+                Ok(None) => {
+                    // Signal stream ended
+                    break;
+                }
+                Err(_) => {
+                    // Timeout occurred, continue processing audio
+                    continue;
                 }
             }
-            Ok(None) => {
-                // Signal stream ended
-                break;
-            }
-            Err(_) => {
-                // Timeout occurred, continue processing audio
-                continue;
-            }
         }
+    }
+
+    // During tests, just return early without signal handling
+    #[cfg(test)]
+    {
+        eprintln!("Test mode: Signal handling disabled");
     }
 
     eprintln!("Exiting waystt");

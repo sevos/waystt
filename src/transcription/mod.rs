@@ -137,13 +137,13 @@ mod tests {
         #[allow(clippy::await_holding_lock)]
         {
             let _lock = ASYNC_ENV_MUTEX.lock().await;
-            
+
             // Save current state and set up test environment
             let original_key = std::env::var("OPENAI_API_KEY").ok();
             std::env::remove_var("OPENAI_API_KEY");
 
             let result = TranscriptionFactory::create_provider("openai").await;
-            
+
             // Restore original state
             if let Some(key) = original_key {
                 std::env::set_var("OPENAI_API_KEY", key);
@@ -166,7 +166,7 @@ mod tests {
         #[allow(clippy::await_holding_lock)]
         {
             let _lock = ASYNC_ENV_MUTEX.lock().await;
-            
+
             // Save current state and set up test environment
             let original_key = std::env::var("OPENAI_API_KEY").ok();
             std::env::set_var("OPENAI_API_KEY", "test-key");
@@ -196,13 +196,13 @@ mod tests {
         #[allow(clippy::await_holding_lock)]
         {
             let _lock = ASYNC_ENV_MUTEX.lock().await;
-            
+
             // Save current state and set up test environment
             let original_credentials = std::env::var("GOOGLE_APPLICATION_CREDENTIALS").ok();
             std::env::remove_var("GOOGLE_APPLICATION_CREDENTIALS");
 
             let result = TranscriptionFactory::create_provider("google").await;
-            
+
             // Restore original state
             if let Some(credentials) = original_credentials {
                 std::env::set_var("GOOGLE_APPLICATION_CREDENTIALS", credentials);
@@ -225,7 +225,7 @@ mod tests {
         #[allow(clippy::await_holding_lock)]
         {
             let _lock = ASYNC_ENV_MUTEX.lock().await;
-            
+
             // Save current state and set up test environment
             let original_key = std::env::var("OPENAI_API_KEY").ok();
             std::env::set_var("OPENAI_API_KEY", "test-key");
@@ -261,11 +261,11 @@ mod tests {
         #[allow(clippy::await_holding_lock)]
         {
             let _lock = ASYNC_ENV_MUTEX.lock().await;
-            
+
             // Save current state and set up test environment
             let original_key = std::env::var("OPENAI_API_KEY").ok();
             let original_provider = std::env::var("TRANSCRIPTION_PROVIDER").ok();
-            
+
             // This test ensures that existing .env configurations continue to work
             std::env::set_var("OPENAI_API_KEY", "test-key");
             std::env::remove_var("TRANSCRIPTION_PROVIDER"); // Default should be openai
@@ -273,7 +273,8 @@ mod tests {
             let config = crate::config::load_config();
             assert_eq!(config.transcription_provider, "openai");
 
-            let provider = TranscriptionFactory::create_provider(&config.transcription_provider).await;
+            let provider =
+                TranscriptionFactory::create_provider(&config.transcription_provider).await;
             assert!(provider.is_ok());
 
             // Restore original state

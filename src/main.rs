@@ -46,7 +46,7 @@ struct Args {
     /// Path to environment file
     #[arg(long)]
     envfile: Option<PathBuf>,
-    
+
     /// Pipe transcribed text to the specified command
     /// Usage: waystt --pipe-to command args
     /// Example: waystt --pipe-to wl-copy
@@ -75,10 +75,7 @@ async fn process_audio_for_transcription(
         volume: config.beep_volume,
     };
     let beep_player = BeepPlayer::new(beep_config)?;
-    eprintln!(
-        "Processing audio: {} samples",
-        audio_data.len()
-    );
+    eprintln!("Processing audio: {} samples", audio_data.len());
 
     // Initialize audio processor
     let processor = AudioProcessor::new(sample_rate);
@@ -125,7 +122,7 @@ async fn process_audio_for_transcription(
                             if transcribed_text.trim().is_empty() {
                                 eprintln!("Warning: Received empty transcription from Whisper API");
                                 eprintln!("This might indicate silent audio or unclear speech");
-                                
+
                                 // Empty transcription is still a successful transcription, so pipe it
                                 let exit_code = if let Some(cmd) = pipe_command {
                                     match command::execute_with_input(cmd, "").await {
@@ -133,8 +130,13 @@ async fn process_audio_for_transcription(
                                         Err(e) => {
                                             eprintln!("Failed to execute pipe command: {}", e);
                                             // Play error beep for command execution failure
-                                            if let Err(beep_err) = beep_player.play_async(BeepType::Error).await {
-                                                eprintln!("Warning: Failed to play error beep: {}", beep_err);
+                                            if let Err(beep_err) =
+                                                beep_player.play_async(BeepType::Error).await
+                                            {
+                                                eprintln!(
+                                                    "Warning: Failed to play error beep: {}",
+                                                    beep_err
+                                                );
                                             }
                                             1
                                         }
@@ -144,12 +146,12 @@ async fn process_audio_for_transcription(
                                     println!("{}", transcribed_text);
                                     0
                                 };
-                                
+
                                 // Play success beep for successful (but empty) transcription
                                 if let Err(e) = beep_player.play_async(BeepType::Success).await {
                                     eprintln!("Warning: Failed to play success beep: {}", e);
                                 }
-                                
+
                                 return Ok(exit_code);
                             }
 
@@ -162,8 +164,13 @@ async fn process_audio_for_transcription(
                                     Err(e) => {
                                         eprintln!("Failed to execute pipe command: {}", e);
                                         // Play error beep for command execution failure
-                                        if let Err(beep_err) = beep_player.play_async(BeepType::Error).await {
-                                            eprintln!("Warning: Failed to play error beep: {}", beep_err);
+                                        if let Err(beep_err) =
+                                            beep_player.play_async(BeepType::Error).await
+                                        {
+                                            eprintln!(
+                                                "Warning: Failed to play error beep: {}",
+                                                beep_err
+                                            );
                                         }
                                         return Ok(1);
                                     }
@@ -173,12 +180,12 @@ async fn process_audio_for_transcription(
                                 println!("{}", transcribed_text);
                                 0
                             };
-                            
+
                             // Play success beep after successful transcription
                             if let Err(e) = beep_player.play_async(BeepType::Success).await {
                                 eprintln!("Warning: Failed to play success beep: {}", e);
                             }
-                            
+
                             Ok(exit_code)
                         }
                         Err(e) => {
@@ -219,7 +226,7 @@ async fn process_audio_for_transcription(
                 }
                 Err(e) => {
                     eprintln!("Failed to encode WAV: {}", e);
-                    
+
                     // Don't execute pipe command when WAV encoding fails
                     Ok(1) // Return exit code 1 for WAV encoding failure
                 }
@@ -238,7 +245,7 @@ async fn process_audio_for_transcription(
             } else if e.to_string().contains("only silence") {
                 eprintln!("Tip: Make sure your microphone is working and you're speaking clearly");
             }
-            
+
             // Don't execute pipe command when audio processing fails
             Ok(1) // Return exit code 1 for audio processing failure
         }
@@ -322,7 +329,7 @@ async fn main() -> Result<()> {
     #[cfg(not(test))]
     {
         let mut signals = Signals::new([SIGUSR1, SIGTERM])?;
-        
+
         loop {
             // Process audio events to capture microphone data
             if let Err(e) = recorder.process_audio_events() {
@@ -330,89 +337,95 @@ async fn main() -> Result<()> {
             }
 
             // Check for signals with timeout
-            match tokio::time::timeout(tokio::time::Duration::from_millis(50), signals.next()).await {
+            match tokio::time::timeout(tokio::time::Duration::from_millis(50), signals.next()).await
+            {
                 Ok(Some(signal)) => {
                     match signal {
                         SIGUSR1 => {
-                        eprintln!("Received SIGUSR1: Stop recording, transcribe, and output");
+                            eprintln!("Received SIGUSR1: Stop recording, transcribe, and output");
 
-                        // Stop recording
-                        if let Err(e) = recorder.stop_recording() {
-                            eprintln!("Failed to stop recording: {}", e);
-                        } else {
-                            // Play recording stop beep
-                            if let Err(e) = beep_player.play_async(BeepType::RecordingStop).await {
-                                eprintln!("Warning: Failed to play recording stop beep: {}", e);
-                            }
-                        }
-
-                        // Get recorded audio data and process it
-                        match recorder.get_audio_data() {
-                            Ok(audio_data) => {
-                                let duration =
-                                    recorder.get_recording_duration_seconds().unwrap_or(0.0);
-                                eprintln!(
-                                    "Captured {} audio samples ({:.2} seconds)",
-                                    audio_data.len(),
-                                    duration
-                                );
-
-                                // Process audio for transcription
-                                match process_audio_for_transcription(
-                                    audio_data,
-                                    16000, // Using fixed sample rate from audio module
-                                    &config,
-                                    args.pipe_to.as_ref(),
-                                )
-                                .await
+                            // Stop recording
+                            if let Err(e) = recorder.stop_recording() {
+                                eprintln!("Failed to stop recording: {}", e);
+                            } else {
+                                // Play recording stop beep
+                                if let Err(e) =
+                                    beep_player.play_async(BeepType::RecordingStop).await
                                 {
-                                    Ok(exit_code) => {
-                                        eprintln!("Audio processing completed with exit code: {}", exit_code);
-                                        
-                                        // Clear buffer to free memory
-                                        if let Err(e) = recorder.clear_buffer() {
-                                            eprintln!("Failed to clear audio buffer: {}", e);
-                                        }
-                                        
-                                        // Exit with the appropriate code
-                                        std::process::exit(exit_code);
-                                    }
-                                    Err(e) => {
-                                        eprintln!("Audio processing failed: {}", e);
-                                        
-                                        // Clear buffer to free memory
-                                        if let Err(e) = recorder.clear_buffer() {
-                                            eprintln!("Failed to clear audio buffer: {}", e);
-                                        }
-                                        
-                                        // Exit with error code
-                                        std::process::exit(1);
-                                    }
+                                    eprintln!("Warning: Failed to play recording stop beep: {}", e);
                                 }
                             }
-                            Err(e) => {
-                                eprintln!("Failed to get audio data: {}", e);
+
+                            // Get recorded audio data and process it
+                            match recorder.get_audio_data() {
+                                Ok(audio_data) => {
+                                    let duration =
+                                        recorder.get_recording_duration_seconds().unwrap_or(0.0);
+                                    eprintln!(
+                                        "Captured {} audio samples ({:.2} seconds)",
+                                        audio_data.len(),
+                                        duration
+                                    );
+
+                                    // Process audio for transcription
+                                    match process_audio_for_transcription(
+                                        audio_data,
+                                        16000, // Using fixed sample rate from audio module
+                                        &config,
+                                        args.pipe_to.as_ref(),
+                                    )
+                                    .await
+                                    {
+                                        Ok(exit_code) => {
+                                            eprintln!(
+                                                "Audio processing completed with exit code: {}",
+                                                exit_code
+                                            );
+
+                                            // Clear buffer to free memory
+                                            if let Err(e) = recorder.clear_buffer() {
+                                                eprintln!("Failed to clear audio buffer: {}", e);
+                                            }
+
+                                            // Exit with the appropriate code
+                                            std::process::exit(exit_code);
+                                        }
+                                        Err(e) => {
+                                            eprintln!("Audio processing failed: {}", e);
+
+                                            // Clear buffer to free memory
+                                            if let Err(e) = recorder.clear_buffer() {
+                                                eprintln!("Failed to clear audio buffer: {}", e);
+                                            }
+
+                                            // Exit with error code
+                                            std::process::exit(1);
+                                        }
+                                    }
+                                }
+                                Err(e) => {
+                                    eprintln!("Failed to get audio data: {}", e);
+                                }
                             }
-                        }
 
-                        break;
-                    }
-                    SIGTERM => {
-                        eprintln!("Received SIGTERM: Shutting down gracefully");
-                        if let Err(e) = recorder.stop_recording() {
-                            eprintln!("Failed to stop recording: {}", e);
+                            break;
                         }
+                        SIGTERM => {
+                            eprintln!("Received SIGTERM: Shutting down gracefully");
+                            if let Err(e) = recorder.stop_recording() {
+                                eprintln!("Failed to stop recording: {}", e);
+                            }
 
-                        // Clear buffer on shutdown
-                        if let Err(e) = recorder.clear_buffer() {
-                            eprintln!("Failed to clear audio buffer during shutdown: {}", e);
+                            // Clear buffer on shutdown
+                            if let Err(e) = recorder.clear_buffer() {
+                                eprintln!("Failed to clear audio buffer during shutdown: {}", e);
+                            }
+
+                            break;
                         }
-
-                        break;
-                    }
-                    _ => {
-                        eprintln!("Received unexpected signal: {}", signal);
-                    }
+                        _ => {
+                            eprintln!("Received unexpected signal: {}", signal);
+                        }
                     }
                 }
                 Ok(None) => {
@@ -484,8 +497,7 @@ mod tests {
         let short_audio = vec![0.5; 160]; // 0.01 seconds at 16kHz
 
         let test_config = Config::default();
-        let result =
-            process_audio_for_transcription(short_audio, 16000, &test_config, None).await;
+        let result = process_audio_for_transcription(short_audio, 16000, &test_config, None).await;
 
         assert!(
             result.is_ok() && result.unwrap() == 1,
@@ -499,8 +511,7 @@ mod tests {
         let silent_audio = vec![0.0; 1600]; // 0.1 seconds of silence
 
         let test_config = Config::default();
-        let result =
-            process_audio_for_transcription(silent_audio, 16000, &test_config, None).await;
+        let result = process_audio_for_transcription(silent_audio, 16000, &test_config, None).await;
 
         assert!(
             result.is_ok() && result.unwrap() == 1,
@@ -643,7 +654,11 @@ mod tests {
         for (audio_data, description) in test_cases {
             let result = process_audio_for_transcription(audio_data, 16000, &config, None).await;
 
-            assert!(result.is_ok() && result.unwrap() == 1, "Should return exit code 1 for {}", description);
+            assert!(
+                result.is_ok() && result.unwrap() == 1,
+                "Should return exit code 1 for {}",
+                description
+            );
         }
     }
 
@@ -651,15 +666,16 @@ mod tests {
     #[allow(clippy::await_holding_lock)]
     async fn test_pipe_to_functionality_with_command() {
         use crate::test_utils::ENV_MUTEX;
-        
+
         let _lock = ENV_MUTEX.lock().unwrap();
-        
+
         let config = Config::default();
         let pipe_command = vec!["cat".to_string()];
-        
+
         // Test with empty audio (should not execute command)
-        let result = process_audio_for_transcription(vec![], 16000, &config, Some(&pipe_command)).await;
-        
+        let result =
+            process_audio_for_transcription(vec![], 16000, &config, Some(&pipe_command)).await;
+
         assert!(result.is_ok());
         // Should return exit code 1 without executing the command
         assert_eq!(result.unwrap(), 1);
@@ -669,15 +685,16 @@ mod tests {
     #[allow(clippy::await_holding_lock)]
     async fn test_pipe_to_functionality_with_failing_command() {
         use crate::test_utils::ENV_MUTEX;
-        
+
         let _lock = ENV_MUTEX.lock().unwrap();
-        
+
         let config = Config::default();
         let pipe_command = vec!["false".to_string()]; // Command that always fails
-        
+
         // Test with empty audio (should not execute command)
-        let result = process_audio_for_transcription(vec![], 16000, &config, Some(&pipe_command)).await;
-        
+        let result =
+            process_audio_for_transcription(vec![], 16000, &config, Some(&pipe_command)).await;
+
         assert!(result.is_ok());
         // Should return exit code 1 without executing the command
         assert_eq!(result.unwrap(), 1);
@@ -687,15 +704,16 @@ mod tests {
     #[allow(clippy::await_holding_lock)]
     async fn test_pipe_to_functionality_with_nonexistent_command() {
         use crate::test_utils::ENV_MUTEX;
-        
+
         let _lock = ENV_MUTEX.lock().unwrap();
-        
+
         let config = Config::default();
         let pipe_command = vec!["nonexistent_command_12345".to_string()];
-        
+
         // Test with empty audio (should not execute command)
-        let result = process_audio_for_transcription(vec![], 16000, &config, Some(&pipe_command)).await;
-        
+        let result =
+            process_audio_for_transcription(vec![], 16000, &config, Some(&pipe_command)).await;
+
         assert!(result.is_ok());
         // Should return exit code 1 without executing the command
         assert_eq!(result.unwrap(), 1);
@@ -704,9 +722,9 @@ mod tests {
     #[tokio::test]
     async fn test_pipe_to_functionality_with_successful_empty_transcription() {
         use crate::test_utils::ENV_MUTEX;
-        
+
         let _lock = ENV_MUTEX.lock().unwrap();
-        
+
         // This test would require mocking the transcription provider to return empty string
         // For now, we're testing the audio processing failure cases which is sufficient
         // The successful transcription + pipe logic is tested via the command module tests
@@ -735,5 +753,4 @@ mod tests {
         config.audio_buffer_duration_seconds = 0; // Invalid
         assert!(config.validate().is_err());
     }
-
 }

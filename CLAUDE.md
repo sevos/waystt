@@ -10,6 +10,87 @@ Configuration:
 - `BEEP_VOLUME=0.0-1.0` - Volume control (default: 0.1)
 
 ## Testing
+
+### Environment Variables and Race Conditions
+
+**Critical**: Tests that modify environment variables must use proper mutex protection to prevent race conditions when running in parallel.
+
+#### Test Mutex System
+The project uses a dual mutex system in `src/test_utils.rs`:
+
+- `ENV_MUTEX` (sync): For synchronous tests
+- `ASYNC_ENV_MUTEX` (async): For async tests that need to hold locks across await points
+
+#### Synchronous Test Pattern
+```rust
+#[test]
+fn test_name() {
+    let _lock = ENV_MUTEX.lock().unwrap();
+    
+    // Save current environment state
+    let original_value = std::env::var("ENV_VAR").ok();
+    
+    // Modify environment for test
+    std::env::set_var("ENV_VAR", "test-value");
+    
+    // Run test logic
+    let result = some_function();
+    
+    // Restore environment state
+    if let Some(value) = original_value {
+        std::env::set_var("ENV_VAR", value);
+    } else {
+        std::env::remove_var("ENV_VAR");
+    }
+    
+    // Assertions
+    assert!(result.is_ok());
+}
+```
+
+#### Async Test Pattern
+```rust
+#[tokio::test]
+async fn test_name() {
+    #[allow(clippy::await_holding_lock)]
+    {
+        let _lock = ASYNC_ENV_MUTEX.lock().await;
+        
+        // Save current environment state
+        let original_value = std::env::var("ENV_VAR").ok();
+        
+        // Modify environment for test
+        std::env::set_var("ENV_VAR", "test-value");
+        
+        // Run async test logic
+        let result = some_async_function().await;
+        
+        // Restore environment state
+        if let Some(value) = original_value {
+            std::env::set_var("ENV_VAR", value);
+        } else {
+            std::env::remove_var("ENV_VAR");
+        }
+        
+        // Assertions
+        assert!(result.is_ok());
+    }
+}
+```
+
+#### Key Principles
+1. **Entire test must be protected**: Hold the mutex for the complete test duration, not just environment manipulation
+2. **Always save and restore**: Capture original environment state and restore it after the test
+3. **Pedantic lint compliance**: Use `#[allow(clippy::await_holding_lock)]` for async tests - this is intentional and necessary
+4. **Import from test_utils**: `use crate::test_utils::{ENV_MUTEX, ASYNC_ENV_MUTEX};`
+
+#### Why This Approach
+- **Prevents race conditions**: No gaps between environment setup and async operations
+- **Proper test isolation**: Each test has exclusive access to environment variables
+- **Parallel execution safe**: Tests can run in parallel without interfering with each other
+- **Lint compliant**: Explicitly acknowledges that holding async locks is intentional for test correctness
+
+### Running Tests
 - Always set the beep volume to 0, when running tests `BEEP_VOLUME=0.0 cargo test...`
 - When developing/testing, use `--envfile .env` to use the project-local .env file instead of ~/.config/waystt/.env
 - Example: `BEEP_VOLUME=0.0 cargo run -- --envfile .env`

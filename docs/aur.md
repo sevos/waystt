@@ -66,7 +66,7 @@ Create `PKGBUILD` file:
 ```bash
 # Maintainer: Your Name <your.email@example.com>
 pkgname=waystt
-pkgver=0.1.1
+pkgver=0.2.1
 pkgrel=1
 pkgdesc="Signal-driven speech-to-text tool for Wayland"
 arch=('x86_64')
@@ -114,7 +114,7 @@ Alternative `PKGBUILD` for binary package:
 # Maintainer: Your Name <your.email@example.com>
 pkgname=waystt-bin
 _pkgname=waystt
-pkgver=0.1.1
+pkgver=0.2.1
 pkgrel=1
 pkgdesc="Signal-driven speech-to-text tool for Wayland (binary release)"
 arch=('x86_64')
@@ -173,7 +173,7 @@ makepkg --printsrcinfo > .SRCINFO
 git add PKGBUILD .SRCINFO
 
 # Commit with descriptive message
-git commit -m "Initial release of waystt v0.1.1"
+git commit -m "Initial release of waystt v0.2.1"
 
 # Push to AUR
 git push origin master
@@ -190,7 +190,7 @@ git push origin master
 
 ```bash
 # Update version in PKGBUILD
-pkgver=0.2.0
+pkgver=0.2.1
 pkgrel=1  # Reset to 1 for new version
 
 # Update checksums
@@ -204,7 +204,7 @@ makepkg
 
 # Commit and push
 git add PKGBUILD .SRCINFO
-git commit -m "Update to v0.2.0"
+git commit -m "Update to v0.2.1"
 git push origin master
 ```
 

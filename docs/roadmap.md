@@ -130,7 +130,13 @@ bindkey "Super+Shift+R" "pgrep -x waystt >/dev/null && pkill -USR2 waystt || way
 - [x] Comprehensive configuration documentation
 - [x] Provider-specific troubleshooting guides
 
-### v0.2.0 - Enhanced (Future)
+### v0.2.0 - Simplified Architecture ✅ COMPLETED
+- [x] Removed clipboard and dual-mode functionality
+- [x] Simplified to stdout-only output
+- [x] Added --pipe-to command flag
+- [x] Enhanced test infrastructure
+
+### v0.3.0 - Enhanced (Future)
 - [ ] Local transcription fallback
 - [ ] Systemd service integration
 - [ ] Installation and distribution packages

@@ -210,22 +210,33 @@ async fn process_audio_for_transcription(
                                     }
                                 }
                                 TranscriptionError::NetworkError(details) => {
-                                    eprintln!("🌐 Network details: {} - {}", details.error_type, details.error_message);
+                                    eprintln!(
+                                        "🌐 Network details: {} - {}",
+                                        details.error_type, details.error_message
+                                    );
                                     match details.error_type.as_str() {
                                         "Request timeout" => {
                                             eprintln!("💡 The transcription service took too long to respond");
                                             eprintln!("💡 Try with a shorter audio clip or check your internet speed");
                                         }
                                         "Connection failed" => {
-                                            eprintln!("💡 Cannot connect to {} servers", details.provider);
+                                            eprintln!(
+                                                "💡 Cannot connect to {} servers",
+                                                details.provider
+                                            );
                                             eprintln!("💡 Check your internet connection and firewall settings");
                                         }
                                         "Service unavailable" => {
-                                            eprintln!("💡 {} service is temporarily unavailable", details.provider);
+                                            eprintln!(
+                                                "💡 {} service is temporarily unavailable",
+                                                details.provider
+                                            );
                                             eprintln!("💡 Please try again in a few minutes");
                                         }
                                         _ => {
-                                            eprintln!("💡 Check your internet connection and try again");
+                                            eprintln!(
+                                                "💡 Check your internet connection and try again"
+                                            );
                                         }
                                     }
                                 }
@@ -236,11 +247,13 @@ async fn process_audio_for_transcription(
                                     if let Some(code) = &details.error_code {
                                         eprintln!("🏷️  Error Code: {}", code);
                                     }
-                                    
+
                                     // Provide specific guidance based on error codes and status
                                     match (details.status_code, details.error_code.as_deref()) {
                                         (Some(400), Some("INVALID_ARGUMENT")) => {
-                                            eprintln!("💡 Check your audio format and language settings");
+                                            eprintln!(
+                                                "💡 Check your audio format and language settings"
+                                            );
                                         }
                                         (Some(401), _) => {
                                             eprintln!("💡 API key is invalid or has insufficient permissions");
@@ -255,7 +268,10 @@ async fn process_audio_for_transcription(
                                             eprintln!("💡 Rate limit exceeded - please wait before trying again");
                                         }
                                         (Some(500..=599), _) => {
-                                            eprintln!("💡 {} server error - please try again later", details.provider);
+                                            eprintln!(
+                                                "💡 {} server error - please try again later",
+                                                details.provider
+                                            );
                                         }
                                         _ => {
                                             eprintln!("💡 Check the error details above and your API configuration");

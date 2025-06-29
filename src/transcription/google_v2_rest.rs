@@ -179,13 +179,15 @@ impl TranscriptionProvider for GoogleV2RestProvider {
         language: Option<String>,
     ) -> Result<String, TranscriptionError> {
         if audio_data.is_empty() {
-            return Err(TranscriptionError::ApiError(crate::transcription::ApiErrorDetails {
-                provider: "Google Speech-to-Text REST".to_string(),
-                status_code: None,
-                error_code: Some("INVALID_INPUT".to_string()),
-                error_message: "Empty audio data".to_string(),
-                raw_response: None,
-            }));
+            return Err(TranscriptionError::ApiError(
+                crate::transcription::ApiErrorDetails {
+                    provider: "Google Speech-to-Text REST".to_string(),
+                    status_code: None,
+                    error_code: Some("INVALID_INPUT".to_string()),
+                    error_message: "Empty audio data".to_string(),
+                    raw_response: None,
+                },
+            ));
         }
 
         // Google Cloud Speech has a 10MB limit for synchronous recognition
@@ -234,19 +236,21 @@ impl TranscriptionProvider for GoogleV2RestProvider {
             .json(&request_payload)
             .send()
             .await
-            .map_err(|e| TranscriptionError::NetworkError(crate::transcription::NetworkErrorDetails {
-                provider: "Google Speech-to-Text REST".to_string(),
-                error_type: if e.is_timeout() {
-                    "Request timeout".to_string()
-                } else if e.is_connect() {
-                    "Connection failed".to_string()
-                } else if e.is_request() {
-                    "Request error".to_string()
-                } else {
-                    "Network error".to_string()
-                },
-                error_message: format!("HTTP request failed: {}", e),
-            }))?;
+            .map_err(|e| {
+                TranscriptionError::NetworkError(crate::transcription::NetworkErrorDetails {
+                    provider: "Google Speech-to-Text REST".to_string(),
+                    error_type: if e.is_timeout() {
+                        "Request timeout".to_string()
+                    } else if e.is_connect() {
+                        "Connection failed".to_string()
+                    } else if e.is_request() {
+                        "Request error".to_string()
+                    } else {
+                        "Network error".to_string()
+                    },
+                    error_message: format!("HTTP request failed: {}", e),
+                })
+            })?;
 
         // Check response status
         if !response.status().is_success() {
@@ -255,25 +259,30 @@ impl TranscriptionProvider for GoogleV2RestProvider {
                 .text()
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
-            
+
             // Try to parse Google API error response
-            let (error_code, error_message) = if let Ok(json) = serde_json::from_str::<serde_json::Value>(&error_text) {
-                let code = json.get("error")
-                    .and_then(|e| e.get("code"))
-                    .and_then(|c| c.as_str())
-                    .or_else(|| json.get("error")
-                        .and_then(|e| e.get("status"))
-                        .and_then(|s| s.as_str()))
-                    .map(|s| s.to_string());
-                let message = json.get("error")
-                    .and_then(|e| e.get("message"))
-                    .and_then(|m| m.as_str())
-                    .unwrap_or(&error_text)
-                    .to_string();
-                (code, message)
-            } else {
-                (None, error_text.clone())
-            };
+            let (error_code, error_message) =
+                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&error_text) {
+                    let code = json
+                        .get("error")
+                        .and_then(|e| e.get("code"))
+                        .and_then(|c| c.as_str())
+                        .or_else(|| {
+                            json.get("error")
+                                .and_then(|e| e.get("status"))
+                                .and_then(|s| s.as_str())
+                        })
+                        .map(|s| s.to_string());
+                    let message = json
+                        .get("error")
+                        .and_then(|e| e.get("message"))
+                        .and_then(|m| m.as_str())
+                        .unwrap_or(&error_text)
+                        .to_string();
+                    (code, message)
+                } else {
+                    (None, error_text.clone())
+                };
 
             return Err(if status == 401 {
                 TranscriptionError::AuthenticationFailed {

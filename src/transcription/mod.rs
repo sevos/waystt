@@ -48,25 +48,28 @@ impl fmt::Display for TranscriptionError {
                 }
             }
             TranscriptionError::NetworkError(details) => {
-                write!(f, "Network error with {}: {} - {}", 
-                       details.provider, details.error_type, details.error_message)
+                write!(
+                    f,
+                    "Network error with {}: {} - {}",
+                    details.provider, details.error_type, details.error_message
+                )
             }
             TranscriptionError::FileTooLarge(size) => {
                 write!(f, "File too large: {} bytes (max 25MB)", size)
             }
             TranscriptionError::ApiError(details) => {
                 let mut msg = format!("API error with {}", details.provider);
-                
+
                 if let Some(status) = details.status_code {
                     msg.push_str(&format!(" (HTTP {})", status));
                 }
-                
+
                 if let Some(code) = &details.error_code {
                     msg.push_str(&format!(" [{}]", code));
                 }
-                
+
                 msg.push_str(&format!(": {}", details.error_message));
-                
+
                 write!(f, "{}", msg)
             }
             TranscriptionError::JsonError(msg) => write!(f, "JSON error: {}", msg),
@@ -156,14 +159,20 @@ mod tests {
             provider: "Google".to_string(),
             details: Some("Invalid API key".to_string()),
         };
-        assert_eq!(error.to_string(), "Authentication failed with Google: Invalid API key");
+        assert_eq!(
+            error.to_string(),
+            "Authentication failed with Google: Invalid API key"
+        );
 
         let error = TranscriptionError::NetworkError(NetworkErrorDetails {
             provider: "OpenAI".to_string(),
             error_type: "Connection timeout".to_string(),
             error_message: "Request timed out after 30s".to_string(),
         });
-        assert_eq!(error.to_string(), "Network error with OpenAI: Connection timeout - Request timed out after 30s");
+        assert_eq!(
+            error.to_string(),
+            "Network error with OpenAI: Connection timeout - Request timed out after 30s"
+        );
 
         let error = TranscriptionError::ApiError(ApiErrorDetails {
             provider: "Google".to_string(),
@@ -172,7 +181,10 @@ mod tests {
             error_message: "Invalid language code".to_string(),
             raw_response: None,
         });
-        assert_eq!(error.to_string(), "API error with Google (HTTP 400) [INVALID_ARGUMENT]: Invalid language code");
+        assert_eq!(
+            error.to_string(),
+            "API error with Google (HTTP 400) [INVALID_ARGUMENT]: Invalid language code"
+        );
 
         let error = TranscriptionError::FileTooLarge(30_000_000);
         assert_eq!(

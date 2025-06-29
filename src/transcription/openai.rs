@@ -23,11 +23,13 @@ impl OpenAIProvider {
         let client = reqwest::Client::builder()
             .timeout(timeout)
             .build()
-            .map_err(|e| TranscriptionError::NetworkError(crate::transcription::NetworkErrorDetails {
-                provider: "OpenAI".to_string(),
-                error_type: "HTTP client error".to_string(),
-                error_message: e.to_string(),
-            }))?;
+            .map_err(|e| {
+                TranscriptionError::NetworkError(crate::transcription::NetworkErrorDetails {
+                    provider: "OpenAI".to_string(),
+                    error_type: "HTTP client error".to_string(),
+                    error_message: e.to_string(),
+                })
+            })?;
 
         Ok(OpenAIProvider {
             api_key,
@@ -49,11 +51,13 @@ impl OpenAIProvider {
         let audio_part = reqwest::multipart::Part::bytes(audio_data.to_vec())
             .file_name("audio.wav")
             .mime_str("audio/wav")
-            .map_err(|e| TranscriptionError::NetworkError(crate::transcription::NetworkErrorDetails {
-                provider: "OpenAI".to_string(),
-                error_type: "HTTP client error".to_string(),
-                error_message: e.to_string(),
-            }))?;
+            .map_err(|e| {
+                TranscriptionError::NetworkError(crate::transcription::NetworkErrorDetails {
+                    provider: "OpenAI".to_string(),
+                    error_type: "HTTP client error".to_string(),
+                    error_message: e.to_string(),
+                })
+            })?;
 
         let mut form = reqwest::multipart::Form::new()
             .part("file", audio_part)
@@ -70,29 +74,30 @@ impl OpenAIProvider {
             .multipart(form)
             .send()
             .await
-            .map_err(|e| TranscriptionError::NetworkError(crate::transcription::NetworkErrorDetails {
-                provider: "OpenAI".to_string(),
-                error_type: if e.is_timeout() {
-                    "Request timeout".to_string()
-                } else if e.is_connect() {
-                    "Connection failed".to_string()
-                } else if e.is_request() {
-                    "Request error".to_string()
-                } else {
-                    "Network error".to_string()
-                },
-                error_message: e.to_string(),
-            }))?;
+            .map_err(|e| {
+                TranscriptionError::NetworkError(crate::transcription::NetworkErrorDetails {
+                    provider: "OpenAI".to_string(),
+                    error_type: if e.is_timeout() {
+                        "Request timeout".to_string()
+                    } else if e.is_connect() {
+                        "Connection failed".to_string()
+                    } else if e.is_request() {
+                        "Request error".to_string()
+                    } else {
+                        "Network error".to_string()
+                    },
+                    error_message: e.to_string(),
+                })
+            })?;
 
         let status = response.status();
-        let response_text = response
-            .text()
-            .await
-            .map_err(|e| TranscriptionError::NetworkError(crate::transcription::NetworkErrorDetails {
+        let response_text = response.text().await.map_err(|e| {
+            TranscriptionError::NetworkError(crate::transcription::NetworkErrorDetails {
                 provider: "OpenAI".to_string(),
                 error_type: "Response reading error".to_string(),
                 error_message: e.to_string(),
-            }))?;
+            })
+        })?;
 
         match status {
             reqwest::StatusCode::OK => {
@@ -115,28 +120,33 @@ impl OpenAIProvider {
             }),
             _ => {
                 // Try to parse error details from response
-                let (error_code, error_message) = if let Ok(json) = serde_json::from_str::<Value>(&response_text) {
-                    let code = json.get("error")
-                        .and_then(|e| e.get("code"))
-                        .and_then(|c| c.as_str())
-                        .map(|s| s.to_string());
-                    let message = json.get("error")
-                        .and_then(|e| e.get("message"))
-                        .and_then(|m| m.as_str())
-                        .unwrap_or(&response_text)
-                        .to_string();
-                    (code, message)
-                } else {
-                    (None, response_text.clone())
-                };
+                let (error_code, error_message) =
+                    if let Ok(json) = serde_json::from_str::<Value>(&response_text) {
+                        let code = json
+                            .get("error")
+                            .and_then(|e| e.get("code"))
+                            .and_then(|c| c.as_str())
+                            .map(|s| s.to_string());
+                        let message = json
+                            .get("error")
+                            .and_then(|e| e.get("message"))
+                            .and_then(|m| m.as_str())
+                            .unwrap_or(&response_text)
+                            .to_string();
+                        (code, message)
+                    } else {
+                        (None, response_text.clone())
+                    };
 
-                Err(TranscriptionError::ApiError(crate::transcription::ApiErrorDetails {
-                    provider: "OpenAI".to_string(),
-                    status_code: Some(status.as_u16()),
-                    error_code,
-                    error_message,
-                    raw_response: Some(response_text),
-                }))
+                Err(TranscriptionError::ApiError(
+                    crate::transcription::ApiErrorDetails {
+                        provider: "OpenAI".to_string(),
+                        status_code: Some(status.as_u16()),
+                        error_code,
+                        error_message,
+                        raw_response: Some(response_text),
+                    },
+                ))
             }
         }
     }

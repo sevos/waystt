@@ -260,23 +260,23 @@ mod tests {
         {
             let _lock = ENV_MUTEX.lock().await;
 
-        // Clear all environment variables first
-        clear_env_vars();
+            // Clear all environment variables first
+            clear_env_vars();
 
-        let config = Config::from_env();
-        assert_eq!(config.openai_api_key, None);
-        assert_eq!(config.transcription_provider, "openai");
-        assert_eq!(config.audio_buffer_duration_seconds, 300);
-        assert_eq!(config.audio_sample_rate, 16000);
-        assert_eq!(config.audio_channels, 1);
-        assert_eq!(config.whisper_model, "whisper-1");
-        assert_eq!(config.whisper_language, "auto");
-        assert_eq!(config.whisper_timeout_seconds, 60);
-        assert_eq!(config.whisper_max_retries, 3);
-        assert_eq!(config.rust_log, "info");
+            let config = Config::from_env();
+            assert_eq!(config.openai_api_key, None);
+            assert_eq!(config.transcription_provider, "openai");
+            assert_eq!(config.audio_buffer_duration_seconds, 300);
+            assert_eq!(config.audio_sample_rate, 16000);
+            assert_eq!(config.audio_channels, 1);
+            assert_eq!(config.whisper_model, "whisper-1");
+            assert_eq!(config.whisper_language, "auto");
+            assert_eq!(config.whisper_timeout_seconds, 60);
+            assert_eq!(config.whisper_max_retries, 3);
+            assert_eq!(config.rust_log, "info");
 
-        // Clean up after test
-        clear_env_vars();
+            // Clean up after test
+            clear_env_vars();
         }
     }
 
@@ -286,35 +286,35 @@ mod tests {
         {
             let _lock = ENV_MUTEX.lock().await;
 
-        // Clear environment variables first to ensure clean state
-        clear_env_vars();
+            // Clear environment variables first to ensure clean state
+            clear_env_vars();
 
-        // Set environment variables
-        env::set_var("OPENAI_API_KEY", "test-api-key");
-        env::set_var("AUDIO_BUFFER_DURATION_SECONDS", "600");
-        env::set_var("AUDIO_SAMPLE_RATE", "44100");
-        env::set_var("AUDIO_CHANNELS", "2");
-        env::set_var("WHISPER_MODEL", "whisper-large");
-        env::set_var("WHISPER_LANGUAGE", "en");
-        env::set_var("WHISPER_TIMEOUT_SECONDS", "120");
-        env::set_var("WHISPER_MAX_RETRIES", "5");
-        env::set_var("RUST_LOG", "debug");
-        env::set_var("TRANSCRIPTION_PROVIDER", "google");
+            // Set environment variables
+            env::set_var("OPENAI_API_KEY", "test-api-key");
+            env::set_var("AUDIO_BUFFER_DURATION_SECONDS", "600");
+            env::set_var("AUDIO_SAMPLE_RATE", "44100");
+            env::set_var("AUDIO_CHANNELS", "2");
+            env::set_var("WHISPER_MODEL", "whisper-large");
+            env::set_var("WHISPER_LANGUAGE", "en");
+            env::set_var("WHISPER_TIMEOUT_SECONDS", "120");
+            env::set_var("WHISPER_MAX_RETRIES", "5");
+            env::set_var("RUST_LOG", "debug");
+            env::set_var("TRANSCRIPTION_PROVIDER", "google");
 
-        let config = Config::from_env();
-        assert_eq!(config.openai_api_key, Some("test-api-key".to_string()));
-        assert_eq!(config.transcription_provider, "google");
-        assert_eq!(config.audio_buffer_duration_seconds, 600);
-        assert_eq!(config.audio_sample_rate, 44100);
-        assert_eq!(config.audio_channels, 2);
-        assert_eq!(config.whisper_model, "whisper-large");
-        assert_eq!(config.whisper_language, "en");
-        assert_eq!(config.whisper_timeout_seconds, 120);
-        assert_eq!(config.whisper_max_retries, 5);
-        assert_eq!(config.rust_log, "debug");
+            let config = Config::from_env();
+            assert_eq!(config.openai_api_key, Some("test-api-key".to_string()));
+            assert_eq!(config.transcription_provider, "google");
+            assert_eq!(config.audio_buffer_duration_seconds, 600);
+            assert_eq!(config.audio_sample_rate, 44100);
+            assert_eq!(config.audio_channels, 2);
+            assert_eq!(config.whisper_model, "whisper-large");
+            assert_eq!(config.whisper_language, "en");
+            assert_eq!(config.whisper_timeout_seconds, 120);
+            assert_eq!(config.whisper_max_retries, 5);
+            assert_eq!(config.rust_log, "debug");
 
-        // Clean up after test
-        clear_env_vars();
+            // Clean up after test
+            clear_env_vars();
         }
     }
 
@@ -324,26 +324,26 @@ mod tests {
         {
             let _lock = ENV_MUTEX.lock().await;
 
-        // Clear at the start
-        clear_env_vars();
+            // Clear at the start
+            clear_env_vars();
 
-        // Set invalid numeric values
-        env::set_var("AUDIO_BUFFER_DURATION_SECONDS", "invalid");
-        env::set_var("AUDIO_SAMPLE_RATE", "not-a-number");
-        env::set_var("AUDIO_CHANNELS", "bad");
-        env::set_var("WHISPER_TIMEOUT_SECONDS", "invalid");
-        env::set_var("WHISPER_MAX_RETRIES", "bad");
+            // Set invalid numeric values
+            env::set_var("AUDIO_BUFFER_DURATION_SECONDS", "invalid");
+            env::set_var("AUDIO_SAMPLE_RATE", "not-a-number");
+            env::set_var("AUDIO_CHANNELS", "bad");
+            env::set_var("WHISPER_TIMEOUT_SECONDS", "invalid");
+            env::set_var("WHISPER_MAX_RETRIES", "bad");
 
-        let config = Config::from_env();
+            let config = Config::from_env();
 
-        // Should fallback to defaults for invalid values
-        assert_eq!(config.audio_buffer_duration_seconds, 300);
-        assert_eq!(config.audio_sample_rate, 16000);
-        assert_eq!(config.audio_channels, 1);
-        assert_eq!(config.whisper_timeout_seconds, 60);
-        assert_eq!(config.whisper_max_retries, 3);
+            // Should fallback to defaults for invalid values
+            assert_eq!(config.audio_buffer_duration_seconds, 300);
+            assert_eq!(config.audio_sample_rate, 16000);
+            assert_eq!(config.audio_channels, 1);
+            assert_eq!(config.whisper_timeout_seconds, 60);
+            assert_eq!(config.whisper_max_retries, 3);
 
-        clear_env_vars();
+            clear_env_vars();
         }
     }
 
@@ -353,31 +353,31 @@ mod tests {
         {
             let _lock = ENV_MUTEX.lock().await;
 
-        clear_env_vars();
+            clear_env_vars();
 
-        // Create a temporary .env file
-        let mut temp_file = NamedTempFile::new().unwrap();
-        writeln!(temp_file, "OPENAI_API_KEY=file-api-key").unwrap();
-        writeln!(temp_file, "AUDIO_BUFFER_DURATION_SECONDS=120").unwrap();
-        writeln!(temp_file, "WHISPER_MODEL=whisper-base").unwrap();
-        writeln!(temp_file, "RUST_LOG=warn").unwrap();
-        writeln!(temp_file, "TRANSCRIPTION_PROVIDER=openai").unwrap();
+            // Create a temporary .env file
+            let mut temp_file = NamedTempFile::new().unwrap();
+            writeln!(temp_file, "OPENAI_API_KEY=file-api-key").unwrap();
+            writeln!(temp_file, "AUDIO_BUFFER_DURATION_SECONDS=120").unwrap();
+            writeln!(temp_file, "WHISPER_MODEL=whisper-base").unwrap();
+            writeln!(temp_file, "RUST_LOG=warn").unwrap();
+            writeln!(temp_file, "TRANSCRIPTION_PROVIDER=openai").unwrap();
 
-        // Load config from file
-        let config = Config::load_env_file(temp_file.path()).unwrap();
+            // Load config from file
+            let config = Config::load_env_file(temp_file.path()).unwrap();
 
-        assert_eq!(config.openai_api_key, Some("file-api-key".to_string()));
-        assert_eq!(config.transcription_provider, "openai");
-        assert_eq!(config.audio_buffer_duration_seconds, 120);
-        assert_eq!(config.whisper_model, "whisper-base");
-        assert_eq!(config.rust_log, "warn");
+            assert_eq!(config.openai_api_key, Some("file-api-key".to_string()));
+            assert_eq!(config.transcription_provider, "openai");
+            assert_eq!(config.audio_buffer_duration_seconds, 120);
+            assert_eq!(config.whisper_model, "whisper-base");
+            assert_eq!(config.rust_log, "warn");
 
-        // Other values should be defaults
-        assert_eq!(config.audio_sample_rate, 16000);
-        assert_eq!(config.audio_channels, 1);
-        assert_eq!(config.whisper_language, "auto");
+            // Other values should be defaults
+            assert_eq!(config.audio_sample_rate, 16000);
+            assert_eq!(config.audio_channels, 1);
+            assert_eq!(config.whisper_language, "auto");
 
-        clear_env_vars();
+            clear_env_vars();
         }
     }
 
@@ -482,27 +482,27 @@ mod tests {
         #[allow(clippy::await_holding_lock)]
         {
             let _lock = ENV_MUTEX.lock().await;
-        clear_env_vars();
+            clear_env_vars();
 
-        // Test enabled audio feedback
-        env::set_var("ENABLE_AUDIO_FEEDBACK", "true");
-        env::set_var("BEEP_VOLUME", "0.5");
+            // Test enabled audio feedback
+            env::set_var("ENABLE_AUDIO_FEEDBACK", "true");
+            env::set_var("BEEP_VOLUME", "0.5");
 
-        let config = Config::from_env();
-        assert!(config.enable_audio_feedback);
-        assert_eq!(config.beep_volume, 0.5);
+            let config = Config::from_env();
+            assert!(config.enable_audio_feedback);
+            assert_eq!(config.beep_volume, 0.5);
 
-        clear_env_vars();
+            clear_env_vars();
 
-        // Test disabled audio feedback
-        env::set_var("ENABLE_AUDIO_FEEDBACK", "false");
-        env::set_var("BEEP_VOLUME", "0.8");
+            // Test disabled audio feedback
+            env::set_var("ENABLE_AUDIO_FEEDBACK", "false");
+            env::set_var("BEEP_VOLUME", "0.8");
 
-        let config = Config::from_env();
-        assert!(!config.enable_audio_feedback);
-        assert_eq!(config.beep_volume, 0.8);
+            let config = Config::from_env();
+            assert!(!config.enable_audio_feedback);
+            assert_eq!(config.beep_volume, 0.8);
 
-        clear_env_vars();
+            clear_env_vars();
         }
     }
 
@@ -511,23 +511,23 @@ mod tests {
         #[allow(clippy::await_holding_lock)]
         {
             let _lock = ENV_MUTEX.lock().await;
-        clear_env_vars();
+            clear_env_vars();
 
-        // Test invalid volume values
-        env::set_var("BEEP_VOLUME", "invalid");
-        let config = Config::from_env();
-        assert_eq!(config.beep_volume, 0.1); // Should use default
+            // Test invalid volume values
+            env::set_var("BEEP_VOLUME", "invalid");
+            let config = Config::from_env();
+            assert_eq!(config.beep_volume, 0.1); // Should use default
 
-        // Test volume clamping
-        env::set_var("BEEP_VOLUME", "2.0");
-        let config = Config::from_env();
-        assert_eq!(config.beep_volume, 1.0); // Should be clamped to 1.0
+            // Test volume clamping
+            env::set_var("BEEP_VOLUME", "2.0");
+            let config = Config::from_env();
+            assert_eq!(config.beep_volume, 1.0); // Should be clamped to 1.0
 
-        env::set_var("BEEP_VOLUME", "-0.5");
-        let config = Config::from_env();
-        assert_eq!(config.beep_volume, 0.0); // Should be clamped to 0.0
+            env::set_var("BEEP_VOLUME", "-0.5");
+            let config = Config::from_env();
+            assert_eq!(config.beep_volume, 0.0); // Should be clamped to 0.0
 
-        clear_env_vars();
+            clear_env_vars();
         }
     }
 
@@ -536,18 +536,18 @@ mod tests {
         #[allow(clippy::await_holding_lock)]
         {
             let _lock = ENV_MUTEX.lock().await;
-        clear_env_vars();
+            clear_env_vars();
 
-        // Test default provider
-        let config = Config::from_env();
-        assert_eq!(config.transcription_provider, "openai");
+            // Test default provider
+            let config = Config::from_env();
+            assert_eq!(config.transcription_provider, "openai");
 
-        // Test custom provider
-        env::set_var("TRANSCRIPTION_PROVIDER", "google");
-        let config = Config::from_env();
-        assert_eq!(config.transcription_provider, "google");
+            // Test custom provider
+            env::set_var("TRANSCRIPTION_PROVIDER", "google");
+            let config = Config::from_env();
+            assert_eq!(config.transcription_provider, "google");
 
-        clear_env_vars();
+            clear_env_vars();
         }
     }
 
@@ -556,32 +556,32 @@ mod tests {
         #[allow(clippy::await_holding_lock)]
         {
             let _lock = ENV_MUTEX.lock().await;
-        clear_env_vars();
+            clear_env_vars();
 
-        // Test that OpenAI provider requires API key
-        env::set_var("TRANSCRIPTION_PROVIDER", "openai");
-        let config = Config::from_env();
-        assert!(config.validate().is_err());
+            // Test that OpenAI provider requires API key
+            env::set_var("TRANSCRIPTION_PROVIDER", "openai");
+            let config = Config::from_env();
+            assert!(config.validate().is_err());
 
-        // Test that OpenAI provider works with API key
-        env::set_var("OPENAI_API_KEY", "test-key");
-        let config = Config::from_env();
-        assert!(config.validate().is_ok());
+            // Test that OpenAI provider works with API key
+            env::set_var("OPENAI_API_KEY", "test-key");
+            let config = Config::from_env();
+            assert!(config.validate().is_ok());
 
-        // Test that Google provider requires Google credentials (but not OpenAI key)
-        env::remove_var("OPENAI_API_KEY");
-        env::set_var("TRANSCRIPTION_PROVIDER", "google");
-        let config = Config::from_env();
-        // This should fail validation without Google credentials
-        assert!(config.validate().is_err());
+            // Test that Google provider requires Google credentials (but not OpenAI key)
+            env::remove_var("OPENAI_API_KEY");
+            env::set_var("TRANSCRIPTION_PROVIDER", "google");
+            let config = Config::from_env();
+            // This should fail validation without Google credentials
+            assert!(config.validate().is_err());
 
-        // Test that Google provider works with credentials
-        env::set_var("GOOGLE_APPLICATION_CREDENTIALS", "/path/to/creds.json");
-        let config = Config::from_env();
-        // This should pass validation with Google credentials (no OpenAI key needed)
-        assert!(config.validate().is_ok());
+            // Test that Google provider works with credentials
+            env::set_var("GOOGLE_APPLICATION_CREDENTIALS", "/path/to/creds.json");
+            let config = Config::from_env();
+            // This should pass validation with Google credentials (no OpenAI key needed)
+            assert!(config.validate().is_ok());
 
-        clear_env_vars();
+            clear_env_vars();
         }
     }
 
@@ -590,32 +590,32 @@ mod tests {
         #[allow(clippy::await_holding_lock)]
         {
             let _lock = ENV_MUTEX.lock().await;
-        clear_env_vars();
+            clear_env_vars();
 
-        // Set Google-specific environment variables
-        env::set_var("TRANSCRIPTION_PROVIDER", "google");
-        env::set_var(
-            "GOOGLE_APPLICATION_CREDENTIALS",
-            "/path/to/credentials.json",
-        );
-        env::set_var("GOOGLE_SPEECH_LANGUAGE_CODE", "es-ES");
-        env::set_var("GOOGLE_SPEECH_MODEL", "latest_short");
-        env::set_var("GOOGLE_SPEECH_ALTERNATIVE_LANGUAGES", "en-US,fr-FR,de-DE");
+            // Set Google-specific environment variables
+            env::set_var("TRANSCRIPTION_PROVIDER", "google");
+            env::set_var(
+                "GOOGLE_APPLICATION_CREDENTIALS",
+                "/path/to/credentials.json",
+            );
+            env::set_var("GOOGLE_SPEECH_LANGUAGE_CODE", "es-ES");
+            env::set_var("GOOGLE_SPEECH_MODEL", "latest_short");
+            env::set_var("GOOGLE_SPEECH_ALTERNATIVE_LANGUAGES", "en-US,fr-FR,de-DE");
 
-        let config = Config::from_env();
-        assert_eq!(config.transcription_provider, "google");
-        assert_eq!(
-            config.google_application_credentials,
-            Some("/path/to/credentials.json".to_string())
-        );
-        assert_eq!(config.google_speech_language_code, "es-ES");
-        assert_eq!(config.google_speech_model, "latest_short");
-        assert_eq!(
-            config.google_speech_alternative_languages,
-            vec!["en-US", "fr-FR", "de-DE"]
-        );
+            let config = Config::from_env();
+            assert_eq!(config.transcription_provider, "google");
+            assert_eq!(
+                config.google_application_credentials,
+                Some("/path/to/credentials.json".to_string())
+            );
+            assert_eq!(config.google_speech_language_code, "es-ES");
+            assert_eq!(config.google_speech_model, "latest_short");
+            assert_eq!(
+                config.google_speech_alternative_languages,
+                vec!["en-US", "fr-FR", "de-DE"]
+            );
 
-        clear_env_vars();
+            clear_env_vars();
         }
     }
 
@@ -624,25 +624,25 @@ mod tests {
         #[allow(clippy::await_holding_lock)]
         {
             let _lock = ENV_MUTEX.lock().await;
-        clear_env_vars();
+            clear_env_vars();
 
-        // Test with spaces and empty entries
-        env::set_var(
-            "GOOGLE_SPEECH_ALTERNATIVE_LANGUAGES",
-            "en-US, fr-FR , , de-DE,",
-        );
-        let config = Config::from_env();
-        assert_eq!(
-            config.google_speech_alternative_languages,
-            vec!["en-US", "fr-FR", "de-DE"]
-        );
+            // Test with spaces and empty entries
+            env::set_var(
+                "GOOGLE_SPEECH_ALTERNATIVE_LANGUAGES",
+                "en-US, fr-FR , , de-DE,",
+            );
+            let config = Config::from_env();
+            assert_eq!(
+                config.google_speech_alternative_languages,
+                vec!["en-US", "fr-FR", "de-DE"]
+            );
 
-        // Test empty string
-        env::set_var("GOOGLE_SPEECH_ALTERNATIVE_LANGUAGES", "");
-        let config = Config::from_env();
-        assert!(config.google_speech_alternative_languages.is_empty());
+            // Test empty string
+            env::set_var("GOOGLE_SPEECH_ALTERNATIVE_LANGUAGES", "");
+            let config = Config::from_env();
+            assert!(config.google_speech_alternative_languages.is_empty());
 
-        clear_env_vars();
+            clear_env_vars();
         }
     }
 

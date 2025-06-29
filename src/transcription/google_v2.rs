@@ -77,11 +77,13 @@ impl GoogleV2Provider {
         let tls_config = ClientTlsConfig::new().domain_name("speech.googleapis.com");
         let endpoint = tonic::transport::Channel::from_static("https://speech.googleapis.com")
             .tls_config(tls_config)
-            .map_err(|e| TranscriptionError::NetworkError(crate::transcription::NetworkErrorDetails {
-                provider: "Google Speech-to-Text gRPC".to_string(),
-                error_type: "TLS configuration error".to_string(),
-                error_message: format!("TLS config error: {}", e),
-            }))?
+            .map_err(|e| {
+                TranscriptionError::NetworkError(crate::transcription::NetworkErrorDetails {
+                    provider: "Google Speech-to-Text gRPC".to_string(),
+                    error_type: "TLS configuration error".to_string(),
+                    error_message: format!("TLS config error: {}", e),
+                })
+            })?
             .timeout(std::time::Duration::from_secs(30))
             .connect_timeout(std::time::Duration::from_secs(10));
         let channel = endpoint.connect().await.map_err(|e| {
@@ -141,13 +143,15 @@ impl TranscriptionProvider for GoogleV2Provider {
         language: Option<String>,
     ) -> Result<String, TranscriptionError> {
         if audio_data.is_empty() {
-            return Err(TranscriptionError::ApiError(crate::transcription::ApiErrorDetails {
-                provider: "Google Speech-to-Text gRPC".to_string(),
-                status_code: None,
-                error_code: Some("INVALID_INPUT".to_string()),
-                error_message: "Empty audio data".to_string(),
-                raw_response: None,
-            }));
+            return Err(TranscriptionError::ApiError(
+                crate::transcription::ApiErrorDetails {
+                    provider: "Google Speech-to-Text gRPC".to_string(),
+                    status_code: None,
+                    error_code: Some("INVALID_INPUT".to_string()),
+                    error_message: "Empty audio data".to_string(),
+                    raw_response: None,
+                },
+            ));
         }
 
         // Google Cloud Speech has a 10MB limit for synchronous recognition
@@ -218,8 +222,12 @@ impl TranscriptionProvider for GoogleV2Provider {
                 TranscriptionError::NetworkError(crate::transcription::NetworkErrorDetails {
                     provider: "Google Speech-to-Text gRPC".to_string(),
                     error_type: error_type.to_string(),
-                    error_message: format!("status={:?}, message={}, details={:?}", 
-                                         e.code(), e.message(), e.metadata()),
+                    error_message: format!(
+                        "status={:?}, message={}, details={:?}",
+                        e.code(),
+                        e.message(),
+                        e.metadata()
+                    ),
                 })
             }
         })?;

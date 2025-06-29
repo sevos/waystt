@@ -23,7 +23,13 @@ impl OpenAIProvider {
         let client = reqwest::Client::builder()
             .timeout(timeout)
             .build()
-            .map_err(|e| TranscriptionError::NetworkError(e.to_string()))?;
+            .map_err(|e| {
+                TranscriptionError::NetworkError(crate::transcription::NetworkErrorDetails {
+                    provider: "OpenAI".to_string(),
+                    error_type: "HTTP client error".to_string(),
+                    error_message: e.to_string(),
+                })
+            })?;
 
         Ok(OpenAIProvider {
             api_key,
@@ -45,7 +51,13 @@ impl OpenAIProvider {
         let audio_part = reqwest::multipart::Part::bytes(audio_data.to_vec())
             .file_name("audio.wav")
             .mime_str("audio/wav")
-            .map_err(|e| TranscriptionError::NetworkError(e.to_string()))?;
+            .map_err(|e| {
+                TranscriptionError::NetworkError(crate::transcription::NetworkErrorDetails {
+                    provider: "OpenAI".to_string(),
+                    error_type: "HTTP client error".to_string(),
+                    error_message: e.to_string(),
+                })
+            })?;
 
         let mut form = reqwest::multipart::Form::new()
             .part("file", audio_part)
@@ -62,28 +74,80 @@ impl OpenAIProvider {
             .multipart(form)
             .send()
             .await
-            .map_err(|e| TranscriptionError::NetworkError(e.to_string()))?;
+            .map_err(|e| {
+                TranscriptionError::NetworkError(crate::transcription::NetworkErrorDetails {
+                    provider: "OpenAI".to_string(),
+                    error_type: if e.is_timeout() {
+                        "Request timeout".to_string()
+                    } else if e.is_connect() {
+                        "Connection failed".to_string()
+                    } else if e.is_request() {
+                        "Request error".to_string()
+                    } else {
+                        "Network error".to_string()
+                    },
+                    error_message: e.to_string(),
+                })
+            })?;
 
         let status = response.status();
-        let response_text = response
-            .text()
-            .await
-            .map_err(|e| TranscriptionError::NetworkError(e.to_string()))?;
+        let response_text = response.text().await.map_err(|e| {
+            TranscriptionError::NetworkError(crate::transcription::NetworkErrorDetails {
+                provider: "OpenAI".to_string(),
+                error_type: "Response reading error".to_string(),
+                error_message: e.to_string(),
+            })
+        })?;
 
         match status {
             reqwest::StatusCode::OK => {
                 let json: Value = serde_json::from_str(&response_text)
                     .map_err(|e| TranscriptionError::JsonError(e.to_string()))?;
                 let text = json.get("text").and_then(|t| t.as_str()).ok_or_else(|| {
-                    TranscriptionError::ApiError("No text field in response".to_string())
+                    TranscriptionError::ApiError(crate::transcription::ApiErrorDetails {
+                        provider: "OpenAI".to_string(),
+                        status_code: Some(200),
+                        error_code: None,
+                        error_message: "No text field in response".to_string(),
+                        raw_response: Some(response_text.clone()),
+                    })
                 })?;
                 Ok(text.to_string())
             }
-            reqwest::StatusCode::UNAUTHORIZED => Err(TranscriptionError::AuthenticationFailed),
-            _ => Err(TranscriptionError::ApiError(format!(
-                "HTTP {}: {}",
-                status, response_text
-            ))),
+            reqwest::StatusCode::UNAUTHORIZED => Err(TranscriptionError::AuthenticationFailed {
+                provider: "OpenAI".to_string(),
+                details: Some("Invalid API key".to_string()),
+            }),
+            _ => {
+                // Try to parse error details from response
+                let (error_code, error_message) =
+                    if let Ok(json) = serde_json::from_str::<Value>(&response_text) {
+                        let code = json
+                            .get("error")
+                            .and_then(|e| e.get("code"))
+                            .and_then(|c| c.as_str())
+                            .map(std::string::ToString::to_string);
+                        let message = json
+                            .get("error")
+                            .and_then(|e| e.get("message"))
+                            .and_then(|m| m.as_str())
+                            .unwrap_or(&response_text)
+                            .to_string();
+                        (code, message)
+                    } else {
+                        (None, response_text.clone())
+                    };
+
+                Err(TranscriptionError::ApiError(
+                    crate::transcription::ApiErrorDetails {
+                        provider: "OpenAI".to_string(),
+                        status_code: Some(status.as_u16()),
+                        error_code,
+                        error_message,
+                        raw_response: Some(response_text),
+                    },
+                ))
+            }
         }
     }
 }
@@ -115,7 +179,7 @@ impl TranscriptionProvider for OpenAIProvider {
                     }
 
                     // Don't retry on authentication errors
-                    if matches!(e, TranscriptionError::AuthenticationFailed) {
+                    if matches!(e, TranscriptionError::AuthenticationFailed { .. }) {
                         return Err(e);
                     }
 

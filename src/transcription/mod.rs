@@ -113,7 +113,7 @@ impl TranscriptionFactory {
                     Some(config.whisper_timeout_seconds),
                     Some(config.whisper_max_retries),
                     Some(config.whisper_model),
-                    None,
+                    config.openai_base_url,
                 )?;
 
                 Ok(Box::new(client))

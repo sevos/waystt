@@ -272,7 +272,7 @@ impl TranscriptionProvider for GoogleV2RestProvider {
                                 .and_then(|e| e.get("status"))
                                 .and_then(|s| s.as_str())
                         })
-                        .map(|s| s.to_string());
+                        .map(std::string::ToString::to_string);
                     let message = json
                         .get("error")
                         .and_then(|e| e.get("message"))

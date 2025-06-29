@@ -126,7 +126,7 @@ impl OpenAIProvider {
                             .get("error")
                             .and_then(|e| e.get("code"))
                             .and_then(|c| c.as_str())
-                            .map(|s| s.to_string());
+                            .map(std::string::ToString::to_string);
                         let message = json
                             .get("error")
                             .and_then(|e| e.get("message"))

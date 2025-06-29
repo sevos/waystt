@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use std::fmt;
+use std::fmt::Write;
 
 pub mod openai;
 // Secure Google provider using google-api-proto
@@ -61,14 +62,14 @@ impl fmt::Display for TranscriptionError {
                 let mut msg = format!("API error with {}", details.provider);
 
                 if let Some(status) = details.status_code {
-                    msg.push_str(&format!(" (HTTP {})", status));
+                    write!(&mut msg, " (HTTP {})", status).unwrap();
                 }
 
                 if let Some(code) = &details.error_code {
-                    msg.push_str(&format!(" [{}]", code));
+                    write!(&mut msg, " [{}]", code).unwrap();
                 }
 
-                msg.push_str(&format!(": {}", details.error_message));
+                write!(&mut msg, ": {}", details.error_message).unwrap();
 
                 write!(f, "{}", msg)
             }

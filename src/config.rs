@@ -254,9 +254,11 @@ mod tests {
         assert!(config.google_speech_alternative_languages.is_empty());
     }
 
-    #[test]
-    fn test_config_from_env_defaults() {
-        let _lock = ENV_MUTEX.lock().unwrap();
+    #[tokio::test]
+    async fn test_config_from_env_defaults() {
+        #[allow(clippy::await_holding_lock)]
+        {
+            let _lock = ENV_MUTEX.lock().await;
 
         // Clear all environment variables first
         clear_env_vars();
@@ -275,11 +277,14 @@ mod tests {
 
         // Clean up after test
         clear_env_vars();
+        }
     }
 
-    #[test]
-    fn test_config_from_env_variables() {
-        let _lock = ENV_MUTEX.lock().unwrap();
+    #[tokio::test]
+    async fn test_config_from_env_variables() {
+        #[allow(clippy::await_holding_lock)]
+        {
+            let _lock = ENV_MUTEX.lock().await;
 
         // Clear environment variables first to ensure clean state
         clear_env_vars();
@@ -310,11 +315,14 @@ mod tests {
 
         // Clean up after test
         clear_env_vars();
+        }
     }
 
-    #[test]
-    fn test_config_from_env_invalid_numbers() {
-        let _lock = ENV_MUTEX.lock().unwrap();
+    #[tokio::test]
+    async fn test_config_from_env_invalid_numbers() {
+        #[allow(clippy::await_holding_lock)]
+        {
+            let _lock = ENV_MUTEX.lock().await;
 
         // Clear at the start
         clear_env_vars();
@@ -336,11 +344,14 @@ mod tests {
         assert_eq!(config.whisper_max_retries, 3);
 
         clear_env_vars();
+        }
     }
 
-    #[test]
-    fn test_load_env_file() {
-        let _lock = ENV_MUTEX.lock().unwrap();
+    #[tokio::test]
+    async fn test_load_env_file() {
+        #[allow(clippy::await_holding_lock)]
+        {
+            let _lock = ENV_MUTEX.lock().await;
 
         clear_env_vars();
 
@@ -367,6 +378,7 @@ mod tests {
         assert_eq!(config.whisper_language, "auto");
 
         clear_env_vars();
+        }
     }
 
     #[test]
@@ -465,9 +477,11 @@ mod tests {
         assert!(result.unwrap_err().to_string().contains("BEEP_VOLUME"));
     }
 
-    #[test]
-    fn test_config_audio_feedback_env_vars() {
-        let _lock = ENV_MUTEX.lock().unwrap();
+    #[tokio::test]
+    async fn test_config_audio_feedback_env_vars() {
+        #[allow(clippy::await_holding_lock)]
+        {
+            let _lock = ENV_MUTEX.lock().await;
         clear_env_vars();
 
         // Test enabled audio feedback
@@ -489,11 +503,14 @@ mod tests {
         assert_eq!(config.beep_volume, 0.8);
 
         clear_env_vars();
+        }
     }
 
-    #[test]
-    fn test_config_audio_feedback_invalid_env_vars() {
-        let _lock = ENV_MUTEX.lock().unwrap();
+    #[tokio::test]
+    async fn test_config_audio_feedback_invalid_env_vars() {
+        #[allow(clippy::await_holding_lock)]
+        {
+            let _lock = ENV_MUTEX.lock().await;
         clear_env_vars();
 
         // Test invalid volume values
@@ -511,11 +528,14 @@ mod tests {
         assert_eq!(config.beep_volume, 0.0); // Should be clamped to 0.0
 
         clear_env_vars();
+        }
     }
 
-    #[test]
-    fn test_transcription_provider_configuration() {
-        let _lock = ENV_MUTEX.lock().unwrap();
+    #[tokio::test]
+    async fn test_transcription_provider_configuration() {
+        #[allow(clippy::await_holding_lock)]
+        {
+            let _lock = ENV_MUTEX.lock().await;
         clear_env_vars();
 
         // Test default provider
@@ -528,11 +548,14 @@ mod tests {
         assert_eq!(config.transcription_provider, "google");
 
         clear_env_vars();
+        }
     }
 
-    #[test]
-    fn test_backward_compatibility_validation() {
-        let _lock = ENV_MUTEX.lock().unwrap();
+    #[tokio::test]
+    async fn test_backward_compatibility_validation() {
+        #[allow(clippy::await_holding_lock)]
+        {
+            let _lock = ENV_MUTEX.lock().await;
         clear_env_vars();
 
         // Test that OpenAI provider requires API key
@@ -559,11 +582,14 @@ mod tests {
         assert!(config.validate().is_ok());
 
         clear_env_vars();
+        }
     }
 
-    #[test]
-    fn test_google_config_from_env() {
-        let _lock = ENV_MUTEX.lock().unwrap();
+    #[tokio::test]
+    async fn test_google_config_from_env() {
+        #[allow(clippy::await_holding_lock)]
+        {
+            let _lock = ENV_MUTEX.lock().await;
         clear_env_vars();
 
         // Set Google-specific environment variables
@@ -590,11 +616,14 @@ mod tests {
         );
 
         clear_env_vars();
+        }
     }
 
-    #[test]
-    fn test_google_alternative_languages_parsing() {
-        let _lock = ENV_MUTEX.lock().unwrap();
+    #[tokio::test]
+    async fn test_google_alternative_languages_parsing() {
+        #[allow(clippy::await_holding_lock)]
+        {
+            let _lock = ENV_MUTEX.lock().await;
         clear_env_vars();
 
         // Test with spaces and empty entries
@@ -614,6 +643,7 @@ mod tests {
         assert!(config.google_speech_alternative_languages.is_empty());
 
         clear_env_vars();
+        }
     }
 
     #[test]

@@ -59,7 +59,7 @@ mod tests {
     #[tokio::test]
     #[allow(clippy::await_holding_lock)]
     async fn test_execute_with_input_success() {
-        let _lock = ENV_MUTEX.lock().unwrap();
+        let _lock = ENV_MUTEX.lock().await;
 
         // Test with 'cat' command which should echo input to stdout
         let command_args = vec!["cat".to_string()];
@@ -75,7 +75,7 @@ mod tests {
     #[tokio::test]
     #[allow(clippy::await_holding_lock)]
     async fn test_execute_with_input_empty_command() {
-        let _lock = ENV_MUTEX.lock().unwrap();
+        let _lock = ENV_MUTEX.lock().await;
 
         let command_args = vec![];
         let input = "test";
@@ -92,7 +92,7 @@ mod tests {
     #[tokio::test]
     #[allow(clippy::await_holding_lock)]
     async fn test_execute_with_input_nonexistent_command() {
-        let _lock = ENV_MUTEX.lock().unwrap();
+        let _lock = ENV_MUTEX.lock().await;
 
         let command_args = vec!["nonexistent_command_12345".to_string()];
         let input = "test";
@@ -109,7 +109,7 @@ mod tests {
     #[tokio::test]
     #[allow(clippy::await_holding_lock)]
     async fn test_execute_with_input_command_with_args() {
-        let _lock = ENV_MUTEX.lock().unwrap();
+        let _lock = ENV_MUTEX.lock().await;
 
         // Test with 'head -n 1' to demonstrate argument handling
         let command_args = vec!["head".to_string(), "-n".to_string(), "1".to_string()];
@@ -125,7 +125,7 @@ mod tests {
     #[tokio::test]
     #[allow(clippy::await_holding_lock)]
     async fn test_execute_with_input_command_failure() {
-        let _lock = ENV_MUTEX.lock().unwrap();
+        let _lock = ENV_MUTEX.lock().await;
 
         // Test with 'false' command which always exits with code 1
         let command_args = vec!["false".to_string()];

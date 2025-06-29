@@ -196,13 +196,71 @@ async fn process_audio_for_transcription(
                                 eprintln!("Warning: Failed to play error beep: {}", beep_err);
                             }
 
-                            // Provide helpful error messages
+                            // Provide helpful error messages based on error details
                             match &e {
-                                TranscriptionError::AuthenticationFailed => {
-                                    eprintln!("💡 Check your API key configuration");
+                                TranscriptionError::AuthenticationFailed { provider, details } => {
+                                    if let Some(details) = details {
+                                        eprintln!("🔑 Authentication details: {}", details);
+                                    }
+                                    eprintln!("💡 Check your {} API key configuration", provider);
+                                    if provider.contains("OpenAI") {
+                                        eprintln!("💡 Verify OPENAI_API_KEY in your environment");
+                                    } else if provider.contains("Google") {
+                                        eprintln!("💡 Verify GOOGLE_APPLICATION_CREDENTIALS path and file content");
+                                    }
                                 }
-                                TranscriptionError::NetworkError(_) => {
-                                    eprintln!("💡 Check your internet connection");
+                                TranscriptionError::NetworkError(details) => {
+                                    eprintln!("🌐 Network details: {} - {}", details.error_type, details.error_message);
+                                    match details.error_type.as_str() {
+                                        "Request timeout" => {
+                                            eprintln!("💡 The transcription service took too long to respond");
+                                            eprintln!("💡 Try with a shorter audio clip or check your internet speed");
+                                        }
+                                        "Connection failed" => {
+                                            eprintln!("💡 Cannot connect to {} servers", details.provider);
+                                            eprintln!("💡 Check your internet connection and firewall settings");
+                                        }
+                                        "Service unavailable" => {
+                                            eprintln!("💡 {} service is temporarily unavailable", details.provider);
+                                            eprintln!("💡 Please try again in a few minutes");
+                                        }
+                                        _ => {
+                                            eprintln!("💡 Check your internet connection and try again");
+                                        }
+                                    }
+                                }
+                                TranscriptionError::ApiError(details) => {
+                                    if let Some(status) = details.status_code {
+                                        eprintln!("📡 API Response: HTTP {}", status);
+                                    }
+                                    if let Some(code) = &details.error_code {
+                                        eprintln!("🏷️  Error Code: {}", code);
+                                    }
+                                    
+                                    // Provide specific guidance based on error codes and status
+                                    match (details.status_code, details.error_code.as_deref()) {
+                                        (Some(400), Some("INVALID_ARGUMENT")) => {
+                                            eprintln!("💡 Check your audio format and language settings");
+                                        }
+                                        (Some(401), _) => {
+                                            eprintln!("💡 API key is invalid or has insufficient permissions");
+                                        }
+                                        (Some(403), _) => {
+                                            eprintln!("💡 API access denied - check your billing/quota settings");
+                                        }
+                                        (Some(404), _) => {
+                                            eprintln!("💡 API endpoint not found - check your service configuration");
+                                        }
+                                        (Some(429), _) => {
+                                            eprintln!("💡 Rate limit exceeded - please wait before trying again");
+                                        }
+                                        (Some(500..=599), _) => {
+                                            eprintln!("💡 {} server error - please try again later", details.provider);
+                                        }
+                                        _ => {
+                                            eprintln!("💡 Check the error details above and your API configuration");
+                                        }
+                                    }
                                 }
                                 TranscriptionError::FileTooLarge(size) => {
                                     eprintln!("💡 Audio file too large: {} bytes (max 25MB)", size);
@@ -214,8 +272,8 @@ async fn process_audio_for_transcription(
                                 TranscriptionError::UnsupportedProvider(provider) => {
                                     eprintln!("💡 Unsupported provider: {}. Check TRANSCRIPTION_PROVIDER setting", provider);
                                 }
-                                _ => {
-                                    eprintln!("💡 Please check your configuration and try again");
+                                TranscriptionError::JsonError(_) => {
+                                    eprintln!("💡 Failed to parse API response - the service may be experiencing issues");
                                 }
                             }
 
@@ -667,7 +725,7 @@ mod tests {
     async fn test_pipe_to_functionality_with_command() {
         use crate::test_utils::ENV_MUTEX;
 
-        let _lock = ENV_MUTEX.lock().unwrap();
+        let _lock = ENV_MUTEX.lock().await;
 
         let config = Config::default();
         let pipe_command = vec!["cat".to_string()];
@@ -686,7 +744,7 @@ mod tests {
     async fn test_pipe_to_functionality_with_failing_command() {
         use crate::test_utils::ENV_MUTEX;
 
-        let _lock = ENV_MUTEX.lock().unwrap();
+        let _lock = ENV_MUTEX.lock().await;
 
         let config = Config::default();
         let pipe_command = vec!["false".to_string()]; // Command that always fails
@@ -705,7 +763,7 @@ mod tests {
     async fn test_pipe_to_functionality_with_nonexistent_command() {
         use crate::test_utils::ENV_MUTEX;
 
-        let _lock = ENV_MUTEX.lock().unwrap();
+        let _lock = ENV_MUTEX.lock().await;
 
         let config = Config::default();
         let pipe_command = vec!["nonexistent_command_12345".to_string()];
@@ -723,7 +781,7 @@ mod tests {
     async fn test_pipe_to_functionality_with_successful_empty_transcription() {
         use crate::test_utils::ENV_MUTEX;
 
-        let _lock = ENV_MUTEX.lock().unwrap();
+        let _lock = ENV_MUTEX.lock().await;
 
         // This test would require mocking the transcription provider to return empty string
         // For now, we're testing the audio processing failure cases which is sufficient

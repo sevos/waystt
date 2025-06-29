@@ -8,11 +8,30 @@ pub mod google_v2;
 pub mod google_v2_rest;
 
 #[derive(Debug)]
+pub struct ApiErrorDetails {
+    pub provider: String,
+    pub status_code: Option<u16>,
+    pub error_code: Option<String>,
+    pub error_message: String,
+    pub raw_response: Option<String>,
+}
+
+#[derive(Debug)]
+pub struct NetworkErrorDetails {
+    pub provider: String,
+    pub error_type: String,
+    pub error_message: String,
+}
+
+#[derive(Debug)]
 pub enum TranscriptionError {
-    AuthenticationFailed,
-    NetworkError(String),
+    AuthenticationFailed {
+        provider: String,
+        details: Option<String>,
+    },
+    NetworkError(NetworkErrorDetails),
     FileTooLarge(usize),
-    ApiError(String),
+    ApiError(ApiErrorDetails),
     JsonError(String),
     ConfigurationError(String),
     UnsupportedProvider(String),
@@ -21,12 +40,35 @@ pub enum TranscriptionError {
 impl fmt::Display for TranscriptionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            TranscriptionError::AuthenticationFailed => write!(f, "Authentication failed"),
-            TranscriptionError::NetworkError(msg) => write!(f, "Network error: {}", msg),
+            TranscriptionError::AuthenticationFailed { provider, details } => {
+                if let Some(details) = details {
+                    write!(f, "Authentication failed with {}: {}", provider, details)
+                } else {
+                    write!(f, "Authentication failed with {}", provider)
+                }
+            }
+            TranscriptionError::NetworkError(details) => {
+                write!(f, "Network error with {}: {} - {}", 
+                       details.provider, details.error_type, details.error_message)
+            }
             TranscriptionError::FileTooLarge(size) => {
                 write!(f, "File too large: {} bytes (max 25MB)", size)
             }
-            TranscriptionError::ApiError(msg) => write!(f, "API error: {}", msg),
+            TranscriptionError::ApiError(details) => {
+                let mut msg = format!("API error with {}", details.provider);
+                
+                if let Some(status) = details.status_code {
+                    msg.push_str(&format!(" (HTTP {})", status));
+                }
+                
+                if let Some(code) = &details.error_code {
+                    msg.push_str(&format!(" [{}]", code));
+                }
+                
+                msg.push_str(&format!(": {}", details.error_message));
+                
+                write!(f, "{}", msg)
+            }
             TranscriptionError::JsonError(msg) => write!(f, "JSON error: {}", msg),
             TranscriptionError::ConfigurationError(msg) => {
                 write!(f, "Configuration error: {}", msg)
@@ -100,15 +142,37 @@ impl TranscriptionFactory {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::ASYNC_ENV_MUTEX;
+    use crate::test_utils::ENV_MUTEX;
 
     #[test]
     fn test_transcription_error_display() {
-        let error = TranscriptionError::AuthenticationFailed;
-        assert_eq!(error.to_string(), "Authentication failed");
+        let error = TranscriptionError::AuthenticationFailed {
+            provider: "OpenAI".to_string(),
+            details: None,
+        };
+        assert_eq!(error.to_string(), "Authentication failed with OpenAI");
 
-        let error = TranscriptionError::NetworkError("Connection timeout".to_string());
-        assert_eq!(error.to_string(), "Network error: Connection timeout");
+        let error = TranscriptionError::AuthenticationFailed {
+            provider: "Google".to_string(),
+            details: Some("Invalid API key".to_string()),
+        };
+        assert_eq!(error.to_string(), "Authentication failed with Google: Invalid API key");
+
+        let error = TranscriptionError::NetworkError(NetworkErrorDetails {
+            provider: "OpenAI".to_string(),
+            error_type: "Connection timeout".to_string(),
+            error_message: "Request timed out after 30s".to_string(),
+        });
+        assert_eq!(error.to_string(), "Network error with OpenAI: Connection timeout - Request timed out after 30s");
+
+        let error = TranscriptionError::ApiError(ApiErrorDetails {
+            provider: "Google".to_string(),
+            status_code: Some(400),
+            error_code: Some("INVALID_ARGUMENT".to_string()),
+            error_message: "Invalid language code".to_string(),
+            raw_response: None,
+        });
+        assert_eq!(error.to_string(), "API error with Google (HTTP 400) [INVALID_ARGUMENT]: Invalid language code");
 
         let error = TranscriptionError::FileTooLarge(30_000_000);
         assert_eq!(
@@ -136,7 +200,7 @@ mod tests {
     async fn test_factory_openai_provider_missing_key() {
         #[allow(clippy::await_holding_lock)]
         {
-            let _lock = ASYNC_ENV_MUTEX.lock().await;
+            let _lock = ENV_MUTEX.lock().await;
 
             // Save current state and set up test environment
             let original_key = std::env::var("OPENAI_API_KEY").ok();
@@ -165,7 +229,7 @@ mod tests {
     async fn test_factory_openai_provider_creation() {
         #[allow(clippy::await_holding_lock)]
         {
-            let _lock = ASYNC_ENV_MUTEX.lock().await;
+            let _lock = ENV_MUTEX.lock().await;
 
             // Save current state and set up test environment
             let original_key = std::env::var("OPENAI_API_KEY").ok();
@@ -195,7 +259,7 @@ mod tests {
     async fn test_factory_google_provider_missing_credentials() {
         #[allow(clippy::await_holding_lock)]
         {
-            let _lock = ASYNC_ENV_MUTEX.lock().await;
+            let _lock = ENV_MUTEX.lock().await;
 
             // Save current state and set up test environment
             let original_credentials = std::env::var("GOOGLE_APPLICATION_CREDENTIALS").ok();
@@ -224,7 +288,7 @@ mod tests {
     async fn test_provider_switching_integration() {
         #[allow(clippy::await_holding_lock)]
         {
-            let _lock = ASYNC_ENV_MUTEX.lock().await;
+            let _lock = ENV_MUTEX.lock().await;
 
             // Save current state and set up test environment
             let original_key = std::env::var("OPENAI_API_KEY").ok();
@@ -260,7 +324,7 @@ mod tests {
     async fn test_backward_compatibility_with_existing_config() {
         #[allow(clippy::await_holding_lock)]
         {
-            let _lock = ASYNC_ENV_MUTEX.lock().await;
+            let _lock = ENV_MUTEX.lock().await;
 
             // Save current state and set up test environment
             let original_key = std::env::var("OPENAI_API_KEY").ok();

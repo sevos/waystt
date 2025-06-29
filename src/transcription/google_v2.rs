@@ -59,26 +59,37 @@ impl GoogleV2Provider {
         let auth = ServiceAccountAuthenticator::builder(service_account_key)
             .build()
             .await
-            .map_err(|_e| TranscriptionError::AuthenticationFailed)?;
+            .map_err(|_e| TranscriptionError::AuthenticationFailed {
+                provider: "Google Speech-to-Text gRPC".to_string(),
+                details: Some("Failed to load service account credentials".to_string()),
+            })?;
 
         // Get access token
         let token = auth
             .token(&["https://www.googleapis.com/auth/cloud-platform"])
             .await
-            .map_err(|_e| TranscriptionError::AuthenticationFailed)?;
+            .map_err(|_e| TranscriptionError::AuthenticationFailed {
+                provider: "Google Speech-to-Text gRPC".to_string(),
+                details: Some("Failed to generate OAuth2 token".to_string()),
+            })?;
 
         // Create channel with explicit TLS configuration and timeout
         let tls_config = ClientTlsConfig::new().domain_name("speech.googleapis.com");
         let endpoint = tonic::transport::Channel::from_static("https://speech.googleapis.com")
             .tls_config(tls_config)
-            .map_err(|e| TranscriptionError::NetworkError(format!("TLS config error: {}", e)))?
+            .map_err(|e| TranscriptionError::NetworkError(crate::transcription::NetworkErrorDetails {
+                provider: "Google Speech-to-Text gRPC".to_string(),
+                error_type: "TLS configuration error".to_string(),
+                error_message: format!("TLS config error: {}", e),
+            }))?
             .timeout(std::time::Duration::from_secs(30))
             .connect_timeout(std::time::Duration::from_secs(10));
         let channel = endpoint.connect().await.map_err(|e| {
-            TranscriptionError::NetworkError(format!(
-                "Failed to connect to speech.googleapis.com: {}",
-                e
-            ))
+            TranscriptionError::NetworkError(crate::transcription::NetworkErrorDetails {
+                provider: "Google Speech-to-Text gRPC".to_string(),
+                error_type: "Connection failed".to_string(),
+                error_message: format!("Failed to connect to speech.googleapis.com: {}", e),
+            })
         })?;
 
         // Create client (we'll add auth headers manually)
@@ -130,7 +141,13 @@ impl TranscriptionProvider for GoogleV2Provider {
         language: Option<String>,
     ) -> Result<String, TranscriptionError> {
         if audio_data.is_empty() {
-            return Err(TranscriptionError::ApiError("Empty audio data".to_string()));
+            return Err(TranscriptionError::ApiError(crate::transcription::ApiErrorDetails {
+                provider: "Google Speech-to-Text gRPC".to_string(),
+                status_code: None,
+                error_code: Some("INVALID_INPUT".to_string()),
+                error_message: "Empty audio data".to_string(),
+                raw_response: None,
+            }));
         }
 
         // Google Cloud Speech has a 10MB limit for synchronous recognition
@@ -174,16 +191,37 @@ impl TranscriptionProvider for GoogleV2Provider {
             "authorization",
             self.auth_token
                 .parse()
-                .map_err(|_| TranscriptionError::AuthenticationFailed)?,
+                .map_err(|_| TranscriptionError::AuthenticationFailed {
+                    provider: "Google Speech-to-Text gRPC".to_string(),
+                    details: Some("Invalid authorization token format".to_string()),
+                })?,
         );
 
         let response = client.recognize(req).await.map_err(|e| {
-            TranscriptionError::NetworkError(format!(
-                "Google Speech API gRPC call failed: status={:?}, message={}, details={:?}",
-                e.code(),
-                e.message(),
-                e.metadata()
-            ))
+            let error_type = match e.code() {
+                tonic::Code::DeadlineExceeded => "Request timeout",
+                tonic::Code::Unavailable => "Service unavailable",
+                tonic::Code::Internal => "Internal server error",
+                tonic::Code::InvalidArgument => "Invalid request",
+                tonic::Code::Unauthenticated => "Authentication failed",
+                tonic::Code::PermissionDenied => "Permission denied",
+                tonic::Code::NotFound => "Service not found",
+                _ => "gRPC error",
+            };
+
+            if e.code() == tonic::Code::Unauthenticated {
+                TranscriptionError::AuthenticationFailed {
+                    provider: "Google Speech-to-Text gRPC".to_string(),
+                    details: Some(format!("{}: {}", error_type, e.message())),
+                }
+            } else {
+                TranscriptionError::NetworkError(crate::transcription::NetworkErrorDetails {
+                    provider: "Google Speech-to-Text gRPC".to_string(),
+                    error_type: error_type.to_string(),
+                    error_message: format!("status={:?}, message={}, details={:?}", 
+                                         e.code(), e.message(), e.metadata()),
+                })
+            }
         })?;
 
         let recognize_response = response.into_inner();

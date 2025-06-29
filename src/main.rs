@@ -247,6 +247,9 @@ async fn process_audio_for_transcription(
                                     if let Some(code) = &details.error_code {
                                         eprintln!("🏷️  Error Code: {}", code);
                                     }
+                                    if let Some(raw_response) = &details.raw_response {
+                                        eprintln!("📄 Raw API Response: {}", raw_response);
+                                    }
 
                                     // Provide specific guidance based on error codes and status
                                     match (details.status_code, details.error_code.as_deref()) {

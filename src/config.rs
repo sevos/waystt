@@ -9,6 +9,7 @@ use std::path::Path;
 #[derive(Debug, Clone)]
 pub struct Config {
     pub openai_api_key: Option<String>,
+    pub openai_base_url: Option<String>,
     pub transcription_provider: String,
     pub audio_buffer_duration_seconds: usize,
     pub audio_sample_rate: u32,
@@ -31,6 +32,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             openai_api_key: None,
+            openai_base_url: None,
             transcription_provider: "openai".to_string(),
             audio_buffer_duration_seconds: 300, // 5 minutes
             audio_sample_rate: 16000,           // Optimized for Whisper
@@ -59,6 +61,9 @@ impl Config {
 
         // Load OpenAI API key
         config.openai_api_key = std::env::var("OPENAI_API_KEY").ok();
+
+        // Load OpenAI base URL
+        config.openai_base_url = std::env::var("OPENAI_BASE_URL").ok();
 
         // Load transcription provider
         if let Ok(provider) = std::env::var("TRANSCRIPTION_PROVIDER") {
@@ -217,6 +222,7 @@ mod tests {
     // Helper function to clear all waystt environment variables
     fn clear_env_vars() {
         env::remove_var("OPENAI_API_KEY");
+        env::remove_var("OPENAI_BASE_URL");
         env::remove_var("TRANSCRIPTION_PROVIDER");
         env::remove_var("AUDIO_BUFFER_DURATION_SECONDS");
         env::remove_var("AUDIO_SAMPLE_RATE");
@@ -238,6 +244,7 @@ mod tests {
     fn test_default_config() {
         let config = Config::default();
         assert_eq!(config.openai_api_key, None);
+        assert_eq!(config.openai_base_url, None);
         assert_eq!(config.transcription_provider, "openai");
         assert_eq!(config.audio_buffer_duration_seconds, 300);
         assert_eq!(config.audio_sample_rate, 16000);
@@ -265,6 +272,7 @@ mod tests {
 
             let config = Config::from_env();
             assert_eq!(config.openai_api_key, None);
+            assert_eq!(config.openai_base_url, None);
             assert_eq!(config.transcription_provider, "openai");
             assert_eq!(config.audio_buffer_duration_seconds, 300);
             assert_eq!(config.audio_sample_rate, 16000);
@@ -300,9 +308,14 @@ mod tests {
             env::set_var("WHISPER_MAX_RETRIES", "5");
             env::set_var("RUST_LOG", "debug");
             env::set_var("TRANSCRIPTION_PROVIDER", "google");
+            env::set_var("OPENAI_BASE_URL", "http://localhost:8080");
 
             let config = Config::from_env();
             assert_eq!(config.openai_api_key, Some("test-api-key".to_string()));
+            assert_eq!(
+                config.openai_base_url,
+                Some("http://localhost:8080".to_string())
+            );
             assert_eq!(config.transcription_provider, "google");
             assert_eq!(config.audio_buffer_duration_seconds, 600);
             assert_eq!(config.audio_sample_rate, 44100);
@@ -362,11 +375,16 @@ mod tests {
             writeln!(temp_file, "WHISPER_MODEL=whisper-base").unwrap();
             writeln!(temp_file, "RUST_LOG=warn").unwrap();
             writeln!(temp_file, "TRANSCRIPTION_PROVIDER=openai").unwrap();
+            writeln!(temp_file, "OPENAI_BASE_URL=http://localhost:8080").unwrap();
 
             // Load config from file
             let config = Config::load_env_file(temp_file.path()).unwrap();
 
             assert_eq!(config.openai_api_key, Some("file-api-key".to_string()));
+            assert_eq!(
+                config.openai_base_url,
+                Some("http://localhost:8080".to_string())
+            );
             assert_eq!(config.transcription_provider, "openai");
             assert_eq!(config.audio_buffer_duration_seconds, 120);
             assert_eq!(config.whisper_model, "whisper-base");

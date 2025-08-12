@@ -13,9 +13,7 @@
 use anyhow::Result;
 use clap::Parser;
 use std::path::PathBuf;
-use std::sync::atomic::AtomicBool;
-#[cfg(not(test))]
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
 
@@ -27,20 +25,18 @@ use signal_hook::consts::{SIGTERM, SIGUSR1, SIGUSR2};
 use signal_hook_tokio::Signals;
 
 mod audio;
-
+mod audio_processing;
 mod beep;
 mod command;
 mod config;
 mod transcription;
+mod wav;
 
 #[cfg(test)]
 mod test_utils;
-#[cfg(not(test))]
 use audio::AudioRecorder;
-#[cfg(not(test))]
 use beep::{BeepConfig, BeepPlayer, BeepType};
 use config::Config;
-#[cfg(not(test))]
 use transcription::realtime::RealtimeTranscriber;
 
 #[derive(Parser)]
@@ -71,6 +67,7 @@ fn get_default_config_path() -> PathBuf {
 struct RealtimeState {
     is_recording: Arc<AtomicBool>,
     audio_sender: Arc<Mutex<Option<mpsc::Sender<Vec<u8>>>>>,
+    transcript_receiver: Arc<Mutex<Option<mpsc::Receiver<String>>>>,
     ws_task: Arc<Mutex<Option<tokio::task::JoinHandle<()>>>>,
 }
 
@@ -79,6 +76,7 @@ impl RealtimeState {
         Self {
             is_recording: Arc::new(AtomicBool::new(false)),
             audio_sender: Arc::new(Mutex::new(None)),
+            transcript_receiver: Arc::new(Mutex::new(None)),
             ws_task: Arc::new(Mutex::new(None)),
         }
     }
@@ -127,30 +125,39 @@ async fn main() -> Result<()> {
     eprintln!("  SIGUSR2: Stop recording and finalize transcription");
     eprintln!("  SIGTERM: Shutdown");
 
+    // Initialize beep player
+    let beep_config = BeepConfig {
+        enabled: config.enable_audio_feedback,
+        volume: config.beep_volume,
+    };
+    let beep_player = BeepPlayer::new(beep_config)?;
+
+    // Initialize audio recorder
+    let mut recorder = AudioRecorder::new()?;
+
+    // Initialize state
+    let state = RealtimeState::new();
+
+    // Create real-time transcriber
+    let api_key = config.openai_api_key.clone().unwrap();
+    let transcriber = RealtimeTranscriber::new(api_key);
+
+    // Buffer for accumulating audio samples
+    let audio_buffer = Arc::new(Mutex::new(Vec::<f32>::new()));
+    let sample_rate = 16000u32;
+
     eprintln!("Ready. Send SIGUSR1 to start real-time transcription.");
+
+    // Task to handle transcription results
+    let pipe_command = args.pipe_to.clone();
+    let beep_player_clone = beep_player.clone();
+    let transcript_handler = tokio::spawn(async move {
+        // This will be started when we begin recording
+    });
 
     // Main event loop
     #[cfg(not(test))]
     {
-        // Initialize beep player
-        let beep_config = BeepConfig {
-            enabled: config.enable_audio_feedback,
-            volume: config.beep_volume,
-        };
-        let beep_player = BeepPlayer::new(beep_config)?;
-
-        // Initialize audio recorder
-        let mut recorder = AudioRecorder::new()?;
-
-        // Initialize state
-        let state = RealtimeState::new();
-
-        // Create real-time transcriber with configured model
-        let api_key = config.openai_api_key.clone().unwrap();
-        let transcriber = RealtimeTranscriber::with_model(api_key, config.realtime_model.clone());
-
-        // Buffer for accumulating audio samples
-        let audio_buffer = Arc::new(Mutex::new(Vec::<f32>::new()));
         let mut signals = Signals::new([SIGUSR1, SIGUSR2, SIGTERM])?;
 
         loop {
@@ -163,11 +170,11 @@ async fn main() -> Result<()> {
                 // Get current audio data and stream it
                 if let Ok(current_audio) = recorder.get_audio_data() {
                     let mut buffer = audio_buffer.lock().await;
-
+                    
                     // Check if we have new samples
                     if current_audio.len() > buffer.len() {
                         let new_samples = &current_audio[buffer.len()..];
-
+                        
                         // Convert to PCM16 and send immediately
                         if !new_samples.is_empty() {
                             let mut pcm16_data = Vec::with_capacity(new_samples.len() * 2);
@@ -175,14 +182,14 @@ async fn main() -> Result<()> {
                                 let sample_i16 = (sample.clamp(-1.0, 1.0) * 32767.0) as i16;
                                 pcm16_data.extend_from_slice(&sample_i16.to_le_bytes());
                             }
-
+                            
                             // Send to real-time transcriber
                             if let Some(sender) = state.audio_sender.lock().await.as_ref() {
                                 if sender.send(pcm16_data).await.is_err() {
                                     eprintln!("Failed to send audio to transcriber");
                                 }
                             }
-
+                            
                             buffer.extend_from_slice(new_samples);
                         }
                     }
@@ -190,65 +197,55 @@ async fn main() -> Result<()> {
             }
 
             // Check for signals
-            match tokio::time::timeout(tokio::time::Duration::from_millis(50), signals.next()).await
-            {
+            match tokio::time::timeout(tokio::time::Duration::from_millis(50), signals.next()).await {
                 Ok(Some(signal)) => {
                     match signal {
                         SIGUSR1 => {
                             if !state.is_recording.load(Ordering::Relaxed) {
                                 eprintln!("Received SIGUSR1: Starting real-time transcription");
-
+                                
                                 // Clear buffers
                                 audio_buffer.lock().await.clear();
                                 if let Err(e) = recorder.clear_buffer() {
                                     eprintln!("Failed to clear recorder buffer: {}", e);
                                 }
-
+                                
                                 // Play start beep BEFORE starting recording
                                 let _ = beep_player.play_async(BeepType::RecordingStart).await;
-
+                                
                                 // Wait for beep to finish
                                 tokio::time::sleep(tokio::time::Duration::from_millis(600)).await;
-
+                                
                                 // Start WebSocket session
                                 let language = if config.whisper_language == "auto" {
                                     None
                                 } else {
                                     Some(config.whisper_language.clone())
                                 };
-
+                                
                                 match transcriber.start_session(language).await {
                                     Ok((audio_tx, mut transcript_rx, ws_task)) => {
                                         *state.audio_sender.lock().await = Some(audio_tx);
                                         *state.ws_task.lock().await = Some(ws_task);
-
+                                        
                                         // Start recording
                                         if let Err(e) = recorder.start_recording() {
                                             eprintln!("Failed to start recording: {}", e);
                                             let _ = beep_player.play_async(BeepType::Error).await;
                                         } else {
                                             state.is_recording.store(true, Ordering::Relaxed);
-
+                                            
                                             // Start task to handle transcriptions
                                             let pipe_cmd = args.pipe_to.clone();
+                                            let beep = beep_player.clone();
                                             tokio::spawn(async move {
-                                                while let Some(transcript) =
-                                                    transcript_rx.recv().await
-                                                {
+                                                while let Some(transcript) = transcript_rx.recv().await {
                                                     if !transcript.trim().is_empty() {
-                                                        eprintln!(
-                                                            "Real-time transcription: \"{}\"",
-                                                            transcript
-                                                        );
-
+                                                        eprintln!("Real-time transcription: \"{}\"", transcript);
+                                                        
                                                         // Execute pipe command if provided
                                                         if let Some(cmd) = &pipe_cmd {
-                                                            match command::execute_with_input(
-                                                                cmd,
-                                                                &transcript,
-                                                            )
-                                                            .await
-                                                            {
+                                                            match command::execute_with_input(cmd, &transcript).await {
                                                                 Ok(exit_code) => {
                                                                     eprintln!("Command executed with exit code: {}", exit_code);
                                                                 }
@@ -263,10 +260,8 @@ async fn main() -> Result<()> {
                                                     }
                                                 }
                                             });
-
-                                            eprintln!(
-                                                "Real-time transcription started - speak now..."
-                                            );
+                                            
+                                            eprintln!("Real-time transcription started - speak now...");
                                         }
                                     }
                                     Err(e) => {
@@ -281,66 +276,35 @@ async fn main() -> Result<()> {
                         SIGUSR2 => {
                             if state.is_recording.load(Ordering::Relaxed) {
                                 eprintln!("Received SIGUSR2: Stopping recording");
-
-                                // Stop recording first
+                                
+                                // Stop recording
                                 state.is_recording.store(false, Ordering::Relaxed);
-
-                                // Get any final audio data before stopping
-                                if let Ok(final_audio) = recorder.get_audio_data() {
-                                    let buffer = audio_buffer.lock().await;
-                                    if final_audio.len() > buffer.len() {
-                                        let remaining_samples = &final_audio[buffer.len()..];
-                                        if !remaining_samples.is_empty() {
-                                            // Convert final samples to PCM16
-                                            let mut pcm16_data =
-                                                Vec::with_capacity(remaining_samples.len() * 2);
-                                            for sample in remaining_samples {
-                                                let sample_i16 =
-                                                    (sample.clamp(-1.0, 1.0) * 32767.0) as i16;
-                                                pcm16_data
-                                                    .extend_from_slice(&sample_i16.to_le_bytes());
-                                            }
-
-                                            // Send final audio
-                                            if let Some(sender) =
-                                                state.audio_sender.lock().await.as_ref()
-                                            {
-                                                let _ = sender.send(pcm16_data).await;
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // Now stop the recorder
                                 if let Err(e) = recorder.stop_recording() {
                                     eprintln!("Failed to stop recording: {}", e);
                                 }
-
+                                
                                 // Play stop beep
                                 let _ = beep_player.play_async(BeepType::RecordingStop).await;
-
-                                // Give time for audio to be sent
-                                tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
-
-                                // NOW close audio sender to signal end of stream
+                                
+                                // Close audio sender to signal end of stream
                                 *state.audio_sender.lock().await = None;
-
+                                
                                 // Wait a moment for final transcriptions
                                 tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-
+                                
                                 // Cancel WebSocket task
                                 if let Some(task) = state.ws_task.lock().await.take() {
                                     task.abort();
                                 }
-
+                                
                                 // Play success beep
                                 let _ = beep_player.play_async(BeepType::Success).await;
-
+                                
                                 // Clear buffer
                                 if let Err(e) = recorder.clear_buffer() {
                                     eprintln!("Failed to clear buffer: {}", e);
                                 }
-
+                                
                                 eprintln!("Recording stopped");
                             } else {
                                 eprintln!("Not recording, ignoring SIGUSR2");
@@ -348,19 +312,19 @@ async fn main() -> Result<()> {
                         }
                         SIGTERM => {
                             eprintln!("Received SIGTERM: Shutting down gracefully");
-
+                            
                             // Stop recording if active
                             if state.is_recording.load(Ordering::Relaxed) {
                                 if let Err(e) = recorder.stop_recording() {
                                     eprintln!("Failed to stop recording: {}", e);
                                 }
                             }
-
+                            
                             // Cancel WebSocket task
                             if let Some(task) = state.ws_task.lock().await.take() {
                                 task.abort();
                             }
-
+                            
                             if let Err(e) = recorder.clear_buffer() {
                                 eprintln!("Failed to clear audio buffer during shutdown: {}", e);
                             }

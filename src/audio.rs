@@ -154,14 +154,6 @@ impl AudioRecorder {
         Ok(())
     }
 
-    pub fn get_recording_duration_seconds(&self) -> Result<f32> {
-        let buffer = self
-            .buffer
-            .lock()
-            .map_err(|_| anyhow!("Failed to lock buffer"))?;
-        Ok(buffer.len() as f32 / SAMPLE_RATE as f32)
-    }
-
     // Method to process audio events (for compatibility with main loop)
     pub fn process_audio_events(&self) -> Result<()> {
         // CPAL handles audio processing in background threads
@@ -266,10 +258,6 @@ mod tests {
         let data = recorder.get_audio_data().unwrap();
         assert_eq!(data.len(), 0);
 
-        // Test duration calculation on empty buffer
-        let duration = recorder.get_recording_duration_seconds().unwrap();
-        assert_eq!(duration, 0.0);
-
         // Clear empty buffer
         assert!(recorder.clear_buffer().is_ok());
         let data = recorder.get_audio_data().unwrap();
@@ -279,9 +267,6 @@ mod tests {
     #[test]
     fn test_buffer_size_limit() {
         let recorder = AudioRecorder::new().unwrap();
-
-        // Test that we can get recording duration (should be 0 for empty buffer)
-        assert_eq!(recorder.get_recording_duration_seconds().unwrap(), 0.0);
 
         // Test initial buffer size
         let data = recorder.get_audio_data().unwrap();

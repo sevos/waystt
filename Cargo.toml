@@ -36,6 +36,9 @@ async-trait = "0.1"
 google-api-proto = { version = "1.710", features = ["google-cloud-speech-v2"] }
 tonic = { version = "0.12.3", features = ["tls-webpki-roots", "tls-native-roots"] }
 yup-oauth2 = "11.0"
+uuid = { version = "1.18.0", features = ["v4"] }
+bytes = "1.10.1"
+tokio-tungstenite = { version = "0.27.0", features = ["native-tls"] }
 
 
 [dev-dependencies]

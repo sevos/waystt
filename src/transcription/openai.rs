@@ -109,7 +109,7 @@ impl OpenAIProvider {
                         status_code: Some(200),
                         error_code: None,
                         error_message: "No text field in response".to_string(),
-                        raw_response: Some(response_text.clone()),
+
                     })
                 })?;
                 Ok(text.to_string())
@@ -144,7 +144,7 @@ impl OpenAIProvider {
                         status_code: Some(status.as_u16()),
                         error_code,
                         error_message,
-                        raw_response: Some(response_text),
+
                     },
                 ))
             }

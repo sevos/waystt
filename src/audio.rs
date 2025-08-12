@@ -9,30 +9,31 @@ use cpal::{
     Device, Stream, StreamConfig,
 };
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::mpsc;
 
 const SAMPLE_RATE: u32 = 16000;
 const CHANNELS: u16 = 1;
 
-// Memory management constants
-const MAX_RECORDING_DURATION_SECONDS: usize = 300; // 5 minutes max
-const MAX_BUFFER_SIZE: usize = SAMPLE_RATE as usize * MAX_RECORDING_DURATION_SECONDS;
-
 pub struct AudioRecorder {
-    buffer: Arc<Mutex<Vec<f32>>>,
     is_recording: Arc<AtomicBool>,
     stream: Option<Stream>,
     device: Option<Device>,
+    audio_sender: Option<mpsc::UnboundedSender<Vec<f32>>>,
 }
 
 impl AudioRecorder {
     pub fn new() -> Result<Self> {
         Ok(Self {
-            buffer: Arc::new(Mutex::new(Vec::new())),
             is_recording: Arc::new(AtomicBool::new(false)),
             stream: None,
             device: None,
+            audio_sender: None,
         })
+    }
+
+    pub fn set_audio_sender(&mut self, sender: mpsc::UnboundedSender<Vec<f32>>) {
+        self.audio_sender = Some(sender);
     }
 
     pub fn start_recording(&mut self) -> Result<()> {
@@ -72,34 +73,17 @@ impl AudioRecorder {
             config.sample_rate.0, config.channels
         );
 
-        // Clone buffer for the stream callback
-        let buffer_clone = Arc::clone(&self.buffer);
+        // Clone sender for the stream callback
+        let sender_clone = self.audio_sender.clone();
 
         // Create audio input stream
         let stream = device.build_input_stream(
             &config,
             move |data: &[f32], _: &cpal::InputCallbackInfo| {
-                // Process audio data in the callback
-                if let Ok(mut audio_buffer) = buffer_clone.lock() {
-                    // Manage buffer size
-                    if audio_buffer.len() + data.len() > MAX_BUFFER_SIZE {
-                        let samples_to_remove = (audio_buffer.len() + data.len()) - MAX_BUFFER_SIZE;
-                        if samples_to_remove < audio_buffer.len() {
-                            audio_buffer.drain(0..samples_to_remove);
-                        } else {
-                            audio_buffer.clear();
-                        }
-                    }
-
-                    let old_len = audio_buffer.len();
-                    audio_buffer.extend_from_slice(data);
-
-                    if old_len == 0 && !audio_buffer.is_empty() {
-                        eprintln!(
-                            "🎤 First audio samples captured! Got {} samples",
-                            data.len()
-                        );
-                    }
+                // Send audio data directly to the channel if available
+                if let Some(sender) = &sender_clone {
+                    // Send a copy of the data
+                    let _ = sender.send(data.to_vec());
                 }
             },
             |err| {
@@ -137,23 +121,6 @@ impl AudioRecorder {
         Ok(())
     }
 
-    pub fn get_audio_data(&self) -> Result<Vec<f32>> {
-        let buffer = self
-            .buffer
-            .lock()
-            .map_err(|_| anyhow!("Failed to lock buffer"))?;
-        Ok(buffer.clone())
-    }
-
-    pub fn clear_buffer(&self) -> Result<()> {
-        let mut buffer = self
-            .buffer
-            .lock()
-            .map_err(|_| anyhow!("Failed to lock buffer"))?;
-        buffer.clear();
-        Ok(())
-    }
-
     // Method to process audio events (for compatibility with main loop)
     pub fn process_audio_events(&self) -> Result<()> {
         // CPAL handles audio processing in background threads
@@ -177,31 +144,6 @@ mod tests {
     fn test_audio_recorder_creation() {
         let recorder = AudioRecorder::new();
         assert!(recorder.is_ok());
-    }
-
-    #[test]
-    fn test_initial_state() {
-        let recorder = AudioRecorder::new().unwrap();
-        let buffer_data = recorder.get_audio_data().unwrap();
-        assert_eq!(buffer_data.len(), 0);
-    }
-
-    #[test]
-    fn test_buffer_operations() {
-        let recorder = AudioRecorder::new().unwrap();
-
-        // Initially empty
-        let data = recorder.get_audio_data().unwrap();
-        assert_eq!(data.len(), 0);
-
-        // Clear empty buffer should work
-        assert!(recorder.clear_buffer().is_ok());
-        let data = recorder.get_audio_data().unwrap();
-        assert_eq!(data.len(), 0);
-
-        // Get empty audio data
-        let data = recorder.get_audio_data().unwrap();
-        assert_eq!(data.len(), 0);
     }
 
     #[test]
@@ -246,47 +188,6 @@ mod tests {
     fn test_audio_format_constants() {
         assert_eq!(SAMPLE_RATE, 16000);
         assert_eq!(CHANNELS, 1);
-        assert_eq!(MAX_RECORDING_DURATION_SECONDS, 300);
-        assert_eq!(MAX_BUFFER_SIZE, 16000 * 300);
-    }
-
-    #[test]
-    fn test_memory_management() {
-        let recorder = AudioRecorder::new().unwrap();
-
-        // Test buffer operations
-        let data = recorder.get_audio_data().unwrap();
-        assert_eq!(data.len(), 0);
-
-        // Clear empty buffer
-        assert!(recorder.clear_buffer().is_ok());
-        let data = recorder.get_audio_data().unwrap();
-        assert_eq!(data.len(), 0);
-    }
-
-    #[test]
-    fn test_buffer_size_limit() {
-        let recorder = AudioRecorder::new().unwrap();
-
-        // Test initial buffer size
-        let data = recorder.get_audio_data().unwrap();
-        assert_eq!(data.len(), 0);
-    }
-
-    #[test]
-    fn test_buffer_thread_safety() {
-        // Test that the buffer is thread-safe for data access
-        let recorder = AudioRecorder::new().unwrap();
-
-        // Test buffer operations are thread-safe
-        let data = recorder.get_audio_data().unwrap();
-        assert_eq!(data.len(), 0);
-
-        // Test concurrent buffer reads
-        let data1 = recorder.get_audio_data().unwrap();
-        let data2 = recorder.get_audio_data().unwrap();
-        assert_eq!(data1, data2);
-        assert_eq!(data1.len(), 0);
     }
 
     #[test]

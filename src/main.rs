@@ -140,8 +140,12 @@ async fn main() -> Result<()> {
         };
         let beep_player = BeepPlayer::new(beep_config)?;
 
-        // Initialize audio recorder
+        // Create channel for audio samples
+        let (audio_tx, mut audio_rx) = tokio::sync::mpsc::unbounded_channel::<Vec<f32>>();
+
+        // Initialize audio recorder with the sender
         let mut recorder = AudioRecorder::new()?;
+        recorder.set_audio_sender(audio_tx);
 
         // Start recording immediately (continuous recording)
         recorder.start_recording()?;
@@ -154,44 +158,37 @@ async fn main() -> Result<()> {
         let api_key = config.openai_api_key.clone().unwrap();
         let transcriber = RealtimeTranscriber::with_model(api_key, config.realtime_model.clone());
 
-        // Track the last processed sample index
-        let last_processed_index = Arc::new(Mutex::new(0usize));
         let mut signals = Signals::new([SIGUSR1, SIGUSR2, SIGTERM])?;
-
         loop {
             // Always process audio events (continuous recording)
             if let Err(e) = recorder.process_audio_events() {
                 eprintln!("Error processing audio events: {}", e);
             }
 
-            // Get current audio data and stream it if we're in streaming mode
+            // Process audio from the queue if we're streaming
             if state.is_recording.load(Ordering::Relaxed) {
-                if let Ok(current_audio) = recorder.get_audio_data() {
-                    let mut last_idx = last_processed_index.lock().await;
+                // Try to receive audio samples without blocking
+                while let Ok(samples) = audio_rx.try_recv() {
+                    // Convert to PCM16 and send immediately
+                    if !samples.is_empty() {
+                        let mut pcm16_data = Vec::with_capacity(samples.len() * 2);
+                        for sample in samples {
+                            let sample_i16 = (sample.clamp(-1.0, 1.0) * 32767.0) as i16;
+                            pcm16_data.extend_from_slice(&sample_i16.to_le_bytes());
+                        }
 
-                    // Check if we have new samples since last processed
-                    if current_audio.len() > *last_idx {
-                        let new_samples = &current_audio[*last_idx..];
-
-                        // Convert to PCM16 and send immediately
-                        if !new_samples.is_empty() {
-                            let mut pcm16_data = Vec::with_capacity(new_samples.len() * 2);
-                            for sample in new_samples {
-                                let sample_i16 = (sample.clamp(-1.0, 1.0) * 32767.0) as i16;
-                                pcm16_data.extend_from_slice(&sample_i16.to_le_bytes());
+                        // Send to real-time transcriber
+                        if let Some(sender) = state.audio_sender.lock().await.as_ref() {
+                            if sender.send(pcm16_data).await.is_err() {
+                                eprintln!("Failed to send audio to transcriber");
                             }
-
-                            // Send to real-time transcriber
-                            if let Some(sender) = state.audio_sender.lock().await.as_ref() {
-                                if sender.send(pcm16_data).await.is_err() {
-                                    eprintln!("Failed to send audio to transcriber");
-                                }
-                            }
-
-                            // Update the last processed index
-                            *last_idx = current_audio.len();
                         }
                     }
+                }
+            } else {
+                // If not streaming, drain the queue to prevent memory buildup
+                while audio_rx.try_recv().is_ok() {
+                    // Just discard the samples
                 }
             }
 
@@ -204,10 +201,8 @@ async fn main() -> Result<()> {
                             if !state.is_recording.load(Ordering::Relaxed) {
                                 eprintln!("Received SIGUSR1: Starting audio streaming to OpenAI");
 
-                                // Set the current audio position as starting point
-                                if let Ok(current_audio) = recorder.get_audio_data() {
-                                    *last_processed_index.lock().await = current_audio.len();
-                                }
+                                // Drain any accumulated audio before starting
+                                while audio_rx.try_recv().is_ok() {}
 
                                 // Play start beep (recording continues in background)
                                 let _ = beep_player.play_async(BeepType::RecordingStart).await;
@@ -279,28 +274,20 @@ async fn main() -> Result<()> {
                                 // Stop streaming mode (recording continues)
                                 state.is_recording.store(false, Ordering::Relaxed);
 
-                                // Get any final audio data for streaming
-                                if let Ok(final_audio) = recorder.get_audio_data() {
-                                    let last_idx = last_processed_index.lock().await;
-                                    if final_audio.len() > *last_idx {
-                                        let remaining_samples = &final_audio[*last_idx..];
-                                        if !remaining_samples.is_empty() {
-                                            // Convert final samples to PCM16
-                                            let mut pcm16_data =
-                                                Vec::with_capacity(remaining_samples.len() * 2);
-                                            for sample in remaining_samples {
-                                                let sample_i16 =
-                                                    (sample.clamp(-1.0, 1.0) * 32767.0) as i16;
-                                                pcm16_data
-                                                    .extend_from_slice(&sample_i16.to_le_bytes());
-                                            }
+                                // Process any remaining audio in the queue
+                                while let Ok(samples) = audio_rx.try_recv() {
+                                    if !samples.is_empty() {
+                                        let mut pcm16_data = Vec::with_capacity(samples.len() * 2);
+                                        for sample in samples {
+                                            let sample_i16 =
+                                                (sample.clamp(-1.0, 1.0) * 32767.0) as i16;
+                                            pcm16_data.extend_from_slice(&sample_i16.to_le_bytes());
+                                        }
 
-                                            // Send final audio
-                                            if let Some(sender) =
-                                                state.audio_sender.lock().await.as_ref()
-                                            {
-                                                let _ = sender.send(pcm16_data).await;
-                                            }
+                                        if let Some(sender) =
+                                            state.audio_sender.lock().await.as_ref()
+                                        {
+                                            let _ = sender.send(pcm16_data).await;
                                         }
                                     }
                                 }
@@ -322,11 +309,6 @@ async fn main() -> Result<()> {
                                     task.abort();
                                 }
 
-                                // Clear buffer
-                                if let Err(e) = recorder.clear_buffer() {
-                                    eprintln!("Failed to clear buffer: {}", e);
-                                }
-
                                 eprintln!(
                                     "Audio streaming stopped (recording continues in background)"
                                 );
@@ -345,10 +327,6 @@ async fn main() -> Result<()> {
                             // Cancel WebSocket task if streaming
                             if let Some(task) = state.ws_task.lock().await.take() {
                                 task.abort();
-                            }
-
-                            if let Err(e) = recorder.clear_buffer() {
-                                eprintln!("Failed to clear audio buffer during shutdown: {}", e);
                             }
 
                             break;

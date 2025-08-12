@@ -1,4 +1,4 @@
-# Agent Instructions for waystt
+# Agent Instructions for HotLine
 
 ## Build & Test Commands
 - Build: `cargo build --release`

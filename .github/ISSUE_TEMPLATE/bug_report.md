@@ -24,12 +24,11 @@ A clear and concise description of what actually happened.
 
 ## Environment
 - OS: [e.g. Arch Linux, Ubuntu 22.04]
-- Wayland Compositor: [e.g. Hyprland, Niri, Sway]
 - Audio System: [e.g. PipeWire, PulseAudio]
-- waystt Version: [e.g. v0.1.0]
+- HotLine Version: [e.g. v0.1.0]
 
 ## Audio Setup
-- Audio devices: `waystt` output from startup
+- Audio devices: `hotline` output from startup
 - PipeWire status: `systemctl --user status pipewire`
 - Audio feedback enabled: [yes/no]
 
@@ -46,7 +45,7 @@ BEEP_VOLUME=0.1
 Please include relevant log output:
 
 ```
-# From: tail -f /tmp/waystt.log
+# From: tail -f /tmp/hotline.log
 [paste logs here]
 ```
 

@@ -1,6 +1,6 @@
 # Environment Configuration
 
-Waystt supports configuration via environment variables loaded from a `.env` file.
+HotLine supports configuration via environment variables loaded from a `.env` file.
 
 ## Quick Start
 
@@ -15,11 +15,11 @@ Waystt supports configuration via environment variables loaded from a `.env` fil
    OPENAI_API_KEY=sk-your-actual-api-key-here
    ```
 
-3. **Run waystt:**
+3. **Run HotLine:**
    ```bash
-   ./waystt
+   ./hotline
    # or with custom env file:
-   ./waystt --envfile /path/to/custom.env
+   ./hotline --envfile /path/to/custom.env
    ```
 
 ## Configuration Options
@@ -50,16 +50,16 @@ Waystt supports configuration via environment variables loaded from a `.env` fil
 
 ```bash
 # Use default .env file
-./waystt
+./hotline
 
 # Use custom environment file
-./waystt --envfile ~/.config/waystt/config.env
+./hotline --envfile ~/.config/hotline/config.env
 
 # Show help
-./waystt --help
+./hotline --help
 
 # Show version
-./waystt --version
+./hotline --version
 ```
 
 ## Environment File Priority

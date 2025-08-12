@@ -1,8 +1,8 @@
 [package]
-name = "waystt"
+name = "hotline"
 version = "0.2.3"
 edition = "2021"
-description = "Speech-to-text tool for Wayland with stdout output"
+description = "A minimalist speech-to-text (STT) tool."
 license = "GPL-3.0-or-later"
 authors = ["Artur Roszczyk <artur.roszczyk@gmail.com>"]
 
@@ -36,7 +36,7 @@ tokio-test = "0.4"
 
 
 [[bin]]
-name = "waystt"
+name = "hotline"
 path = "src/main.rs"
 
 [profile.release]

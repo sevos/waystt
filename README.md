@@ -1,18 +1,30 @@
-# waystt - Real-time Wayland Speech-to-Text
+# ☎️ HotLine
 
-A real-time speech-to-text tool for Wayland that continuously records audio, streams to OpenAI for transcription on demand, and outputs the result to stdout.
+**HotLine** is an open source, minimalist speech-to-text (STT) tool that channels the charm of classic telephony into a modern user experience powered by OpenAI’s streaming transcription.
 
-## Features
+## 🔊 Philosophy
 
-- **Real-time Transcription**: Streams audio to OpenAI's real-time API for instant transcription.
-- **Signal-driven Streaming**: Use system signals (`SIGUSR1`, `SIGUSR2`) to start and stop transcription streaming without interrupting the application.
-- **UNIX Philosophy**: Outputs transcribed text to `stdout`, allowing you to pipe it to other tools like `wl-copy` or `ydotool`.
-- **Continuous Recording**: Records audio continuously in the background, so it's always ready to transcribe when you are.
-- **Audio Feedback**: Provides audible beeps to confirm when streaming starts and stops.
+**HotLine** is built on the idea that speech interfaces should be effortless, responsive, and maybe even a little fun.
+
+- **Zero friction.** No windows, prompts, or configuration menus. You trigger it, you speak, it types.
+- **Uncanny familiarity.** We grew up with phones that clicked, hummed, and beeped. HotLine borrows those auditory signals to communicate its state: on, off, listening, or error — all without cluttering your screen.
+- **Free as in freedom.** HotLine is fully open source, made to be hacked, extended, and improved.
+- **Focused on joy.** Computers should be delightful. HotLine takes a serious tool — speech recognition — and wraps it in a nostalgic, playful skin.
+
+## 🎧 User Experience
+
+When you activate HotLine, it plays a soft **off-hook tone**, just like picking up an old-school phone. That’s your cue: HotLine is now ready.
+
+Tap the "start listening" signal? You’ll hear a crisp **beep**, like an answering machine — and you're live. Your speech starts flowing into the current text field as keystrokes, automatically and naturally.
+
+Need to stop? The familiar **"beep-beep-beep"** of a dropped call lets you know it’s over.
+
+And if something goes sideways — say, no API connection — you’ll hear the unmistakable **three-tone SIT error signal** you’ve heard a thousand times before.
+
+No visual distractions. Just you, your voice, and the comforting sounds of analog feedback.
 
 ## Requirements
 
-- **Wayland desktop** (Hyprland, Niri, GNOME, KDE, etc.)
 - **OpenAI API key**
 - **System packages**:
   ```bash
@@ -28,18 +40,18 @@ A real-time speech-to-text tool for Wayland that continuously records audio, str
 
 ## Installation
 
-1.  **Download the latest binary** from the [GitHub Releases](https://github.com/sevos/waystt/releases) page.
+1.  **Download the latest binary** from the [GitHub Releases](https://github.com/sevos/hotline/releases) page.
 2.  **Install the binary**:
     ```bash
     # Download the binary
-    wget https://github.com/sevos/waystt/releases/latest/download/waystt-linux-x86_64
+    wget https://github.com/sevos/hotline/releases/latest/download/hotline-linux-x86_64
 
     # Make it executable
-    chmod +x waystt-linux-x86_64
+    chmod +x hotline-linux-x86_64
 
     # Move it to a directory in your PATH
     mkdir -p ~/.local/bin
-    mv waystt-linux-x86_64 ~/.local/bin/waystt
+    mv hotline-linux-x86_64 ~/.local/bin/hotline
 
     # Add ~/.local/bin to your PATH if it's not already (add to ~/.bashrc or ~/.zshrc)
     export PATH="$HOME/.local/bin:$PATH"
@@ -47,12 +59,12 @@ A real-time speech-to-text tool for Wayland that continuously records audio, str
 
 ## Configuration
 
-`waystt` is configured using environment variables. It automatically loads them from `~/.config/waystt/.env`.
+`hotline` is configured using environment variables. It automatically loads them from `~/.config/hotline/.env`.
 
 1.  **Create the configuration file**:
     ```bash
-    mkdir -p ~/.config/waystt
-    touch ~/.config/waystt/.env
+    mkdir -p ~/.config/hotline
+    touch ~/.config/hotline/.env
     ```
 
 2.  **Edit the file** and add your OpenAI API key:
@@ -77,42 +89,42 @@ A real-time speech-to-text tool for Wayland that continuously records audio, str
 
 ## Usage
 
-The core of `waystt` is a long-running process that you control with signals.
+The core of `hotline` is a long-running process that you control with signals.
 
-1.  **Start the `waystt` service** in a terminal or as a background process. This will immediately start recording audio.
+1.  **Start the `hotline` service** in a terminal or as a background process. This will immediately start recording audio.
     ```bash
     # Run in a terminal to see logs
-    waystt
+    hotline
 
     # Or, run in the background
-    waystt &
+    hotline &
     ```
     You can optionally pipe the output to another command:
     ```bash
     # Pipe to wl-copy to automatically copy transcripts to the clipboard
-    waystt --pipe-to wl-copy &
+    hotline --pipe-to wl-copy &
 
     # Pipe to ydotool to type the transcript directly (see ydotool setup below)
-    waystt --pipe-to "ydotool type --file -" &
+    hotline --pipe-to "ydotool type --file -" &
     ```
 
 2.  **Control transcription with signals**:
-    -   **Start Streaming (`SIGUSR1`)**: Send the `SIGUSR1` signal to `waystt` to begin streaming audio to OpenAI.
+    -   **Start Streaming (`SIGUSR1`)**: Send the `SIGUSR1` signal to `hotline` to begin streaming audio to OpenAI.
         ```bash
-        pkill --signal SIGUSR1 waystt
+        pkill --signal SIGUSR1 hotline
         ```
     -   **Stop Streaming (`SIGUSR2`)**: Send the `SIGUSR2` signal to stop the stream. The application will continue recording in the background, ready for the next time you send `SIGUSR1`.
         ```bash
-        pkill --signal SIGUSR2 waystt
+        pkill --signal SIGUSR2 hotline
         ```
-    -   **Shutdown (`SIGTERM`)**: To stop the `waystt` application completely, send the `SIGTERM` signal.
+    -   **Shutdown (`SIGTERM`)**: To stop the `hotline` application completely, send the `SIGTERM` signal.
         ```bash
-        pkill --signal SIGTERM waystt
+        pkill --signal SIGTERM hotline
         ```
 
 ## Keybinding Examples
 
-The most effective way to use `waystt` is to bind the `SIGUSR1` and `SIGUSR2` signals to hotkeys. Here is an example of a "push-to-talk" style keybinding.
+The most effective way to use `hotline` is to bind the `SIGUSR1` and `SIGUSR2` signals to hotkeys. Here is an example of a "push-to-talk" style keybinding.
 
 **Keybinding Logic**:
 -   When you press and hold the key, it sends `SIGUSR1` to start streaming.
@@ -123,11 +135,11 @@ The most effective way to use `waystt` is to bind the `SIGUSR1` and `SIGUSR2` si
 Add this to your `~/.config/hypr/hyprland.conf`:
 
 ```ini
-# Real-time speech-to-text with waystt
+# Real-time speech-to-text with hotline
 bind = SUPER, R, submap, speech
 submap = speech
-binde=, SUPER_L, exec, pkill --signal SIGUSR1 waystt
-bindr=, SUPER_L, exec, pkill --signal SIGUSR2 waystt
+binde=, SUPER_L, exec, pkill --signal SIGUSR1 hotline
+bindr=, SUPER_L, exec, pkill --signal SIGUSR2 hotline
 bind=, escape, submap, reset
 submap = reset
 ```
@@ -140,9 +152,9 @@ Key release events are not directly supported in the same way. A toggle approach
 Add to `~/.config/niri/config.kdl`:
 ```kdl
 binds {
-    // Toggle waystt streaming
+    // Toggle hotline streaming
     Mod+R {
-        spawn "sh" "-c" "if pgrep -x waystt-streaming >/dev/null; then pkill --signal SIGUSR2 waystt && rm /tmp/waystt-streaming; else pkill --signal SIGUSR1 waystt && touch /tmp/waystt-streaming; fi";
+        spawn "sh" "-c" "if pgrep -x hotline-streaming >/dev/null; then pkill --signal SIGUSR2 hotline && rm /tmp/hotline-streaming; else pkill --signal SIGUSR1 hotline && touch /tmp/hotline-streaming; fi";
     }
 }
 ```
@@ -150,7 +162,7 @@ binds {
 
 ### Example: Using `ydotool` for Direct Typing
 
-If you want `waystt` to type your speech directly into any application, you need `ydotool`.
+If you want `hotline` to type your speech directly into any application, you need `ydotool`.
 
 1.  **Install `ydotool`**:
     ```bash
@@ -165,17 +177,17 @@ If you want `waystt` to type your speech directly into any application, you need
     ```bash
     systemctl --user enable --now ydotool.service
     ```
-4.  **Start `waystt` with the correct pipe**:
+4.  **Start `hotline` with the correct pipe**:
     ```bash
-    waystt --pipe-to "ydotool type --file -" &
+    hotline --pipe-to "ydotool type --file -" &
     ```
 
 ## Troubleshooting
 
 -   **No transcription**:
-    -   Ensure `waystt` is running (`pgrep -x waystt`).
+    -   Ensure `hotline` is running (`pgrep -x hotline`).
     -   Verify your `OPENAI_API_KEY` is correct and has credits.
-    -   Check the `waystt` logs for error messages by running it in a terminal.
+    -   Check the `hotline` logs for error messages by running it in a terminal.
 -   **Audio issues**:
     -   Ensure `pipewire` is running: `systemctl --user status pipewire`.
     -   Check that your microphone is not muted (`pavucontrol`, `alsamixer`).
@@ -188,4 +200,4 @@ If you want `waystt` to type your speech directly into any application, you need
 -   **Run linter**: `cargo clippy --all-targets -- -D warnings`
 
 ---
-*Licensed under GPL v3.0 or later. Source code: https://github.com/sevos/waystt*
+*Licensed under GPL v3.0 or later. Source code: https://github.com/sevos/hotline*

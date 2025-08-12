@@ -1,6 +1,6 @@
 { inputs, ... }:
 {
-  flake.homeManagerModules.waystt =
+  flake.homeManagerModules.hotline =
     {
       config,
       lib,
@@ -8,17 +8,17 @@
       ...
     }:
     let
-      cfg = config.programs.waystt;
+      cfg = config.programs.hotline;
     in
     {
-      options.programs.waystt = {
-        enable = lib.mkEnableOption "waystt";
+      options.programs.hotline = {
+        enable = lib.mkEnableOption "hotline";
 
         package = lib.mkOption {
           type = lib.types.package;
-          default = inputs.self.packages.${pkgs.system}.waystt;
-          defaultText = lib.literalExpression "inputs.self.packages.\${pkgs.system}.waystt";
-          description = "The waystt package to use.";
+          default = inputs.self.packages.${pkgs.system}.hotline;
+          defaultText = lib.literalExpression "inputs.self.packages.\${pkgs.system}.hotline";
+          description = "The hotline package to use.";
         };
 
         settings = lib.mkOption {
@@ -93,11 +93,11 @@
             };
           };
           default = { };
-          description = "Configuration written to {file}`$XDG_CONFIG_HOME/waystt/.env`.";
+          description = "Configuration written to {file}`$XDG_CONFIG_HOME/hotline/.env`.";
         };
 
         systemdService = {
-          enable = lib.mkEnableOption "waystt systemd service";
+          enable = lib.mkEnableOption "hotline systemd service";
           
           wantedBy = lib.mkOption {
             type = lib.types.listOf lib.types.str;
@@ -110,7 +110,7 @@
       config = lib.mkIf cfg.enable {
         home.packages = [ cfg.package ];
 
-        xdg.configFile."waystt/.env" = lib.mkIf (cfg.settings != { }) {
+        xdg.configFile."hotline/.env" = lib.mkIf (cfg.settings != { }) {
           text = lib.concatStringsSep "\n" (
             lib.mapAttrsToList (name: value: 
               if value == null then ""
@@ -120,16 +120,16 @@
           );
         };
 
-        systemd.user.services.waystt = lib.mkIf cfg.systemdService.enable {
+        systemd.user.services.hotline = lib.mkIf cfg.systemdService.enable {
           Unit = {
-            Description = "waystt - Speech-to-text tool for Wayland";
+            Description = "HotLine - Speech-to-text tool";
             After = [ "graphical-session.target" ];
             PartOf = [ "graphical-session.target" ];
           };
 
           Service = {
             Type = "simple";
-            ExecStart = "${cfg.package}/bin/waystt";
+            ExecStart = "${cfg.package}/bin/hotline";
             Restart = "on-failure";
             RestartSec = "5s";
             

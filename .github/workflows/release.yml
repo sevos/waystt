@@ -39,19 +39,19 @@ jobs:
       run: cargo build --release --target x86_64-unknown-linux-gnu
 
     - name: Strip binary
-      run: strip target/x86_64-unknown-linux-gnu/release/waystt
+      run: strip target/x86_64-unknown-linux-gnu/release/hotline
 
     - name: Rename binary for release
-      run: cp target/x86_64-unknown-linux-gnu/release/waystt waystt-linux-x86_64
+      run: cp target/x86_64-unknown-linux-gnu/release/hotline hotline-linux-x86_64
 
     - name: Create Release with Assets
       uses: softprops/action-gh-release@v2
       with:
         files: |
-          waystt-linux-x86_64
+          hotline-linux-x86_64
           LICENSE
           CHANGELOG.md
-        name: waystt v${{ github.ref_name }}
+        name: HotLine v${{ github.ref_name }}
         body_path: CHANGELOG.md
         draft: false
         prerelease: false

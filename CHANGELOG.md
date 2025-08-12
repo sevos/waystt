@@ -82,7 +82,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0] - 2025-06-25
 
 ### Added
-- Initial release of waystt - Wayland Speech-to-Text Tool
+- Initial release of HotLine - Speech-to-Text Tool
 - Signal-driven speech-to-text with dual output modes:
   - SIGUSR1: Direct text typing via ydotool 
   - SIGUSR2: Clipboard copy for manual pasting
@@ -114,7 +114,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Keybinding Examples
 - Hyprland and Niri configuration examples provided
-- Process detection using `pgrep -x waystt` for reliable signal handling
+- Process detection using `pgrep -x hotline` for reliable signal handling
 
 ### Dependencies
 - tokio (async runtime)

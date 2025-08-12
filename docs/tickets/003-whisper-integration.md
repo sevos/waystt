@@ -7,7 +7,7 @@ Implement OpenAI Whisper API client with multipart upload and response handling
 Send processed audio to OpenAI Whisper API and handle transcription response
 
 ## User Story
-As a user, I want waystt to send my recorded audio to OpenAI Whisper API and receive accurate transcription text so that I can have my speech converted to text for pasting or copying.
+As a user, I want hotline to send my recorded audio to OpenAI Whisper API and receive accurate transcription text so that I can have my speech converted to text for pasting or copying.
 
 ## Technical Considerations
 - Implement HTTP client using reqwest for OpenAI Whisper API

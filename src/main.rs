@@ -44,8 +44,8 @@ use config::Config;
 use transcription::realtime::RealtimeTranscriber;
 
 #[derive(Parser)]
-#[command(name = "waystt")]
-#[command(about = "Wayland Speech-to-Text Tool - Real-time WebSocket transcription")]
+#[command(name = "hotline")]
+#[command(about = "HotLine - A minimalist speech-to-text (STT) tool.")]
 #[command(version)]
 struct Args {
     /// Path to environment file
@@ -53,9 +53,9 @@ struct Args {
     envfile: Option<PathBuf>,
 
     /// Pipe transcribed text to the specified command
-    /// Usage: waystt --pipe-to command args
-    /// Example: waystt --pipe-to wl-copy
-    /// Example: waystt --pipe-to ydotool type --file -
+    /// Usage: hotline --pipe-to command args
+    /// Example: hotline --pipe-to wl-copy
+    /// Example: hotline --pipe-to ydotool type --file -
     #[arg(long, short = 'p', num_args = 1.., value_name = "COMMAND", allow_hyphen_values = true, trailing_var_arg = true)]
     pipe_to: Option<Vec<String>>,
 }
@@ -63,7 +63,7 @@ struct Args {
 fn get_default_config_path() -> PathBuf {
     dirs::config_dir()
         .unwrap_or_else(|| std::env::var("HOME").map_or_else(|_| PathBuf::from("."), PathBuf::from))
-        .join("waystt")
+        .join("hotline")
         .join(".env")
 }
 
@@ -121,7 +121,7 @@ async fn main() -> Result<()> {
         return Err(e);
     }
 
-    eprintln!("waystt - Real-time WebSocket Transcription");
+    eprintln!("HotLine - Real-time WebSocket Transcription");
     eprintln!("Using OpenAI Realtime API for instant transcription");
     eprintln!("Commands:");
     eprintln!("  SIGUSR1: Start streaming audio to OpenAI");
@@ -388,6 +388,6 @@ async fn main() -> Result<()> {
         eprintln!("Test mode: Signal handling disabled");
     }
 
-    eprintln!("Exiting waystt");
+    eprintln!("Exiting HotLine");
     Ok(())
 }

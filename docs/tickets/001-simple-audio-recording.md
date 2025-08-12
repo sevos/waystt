@@ -9,7 +9,7 @@
 **COMPLETED**: Successfully recording real microphone audio with CPAL cross-platform library
 
 ## User Story
-As a user, I want waystt to start recording audio immediately when launched so that I can capture speech for later transcription when I send a signal.
+As a user, I want hotline to start recording audio immediately when launched so that I can capture speech for later transcription when I send a signal.
 
 ## Implementation Summary
 **Switched from PipeWire to CPAL for better reliability and cross-platform support**
@@ -30,7 +30,7 @@ As a user, I want waystt to start recording audio immediately when launched so t
 ## Acceptance Criteria - ALL COMPLETED ✅
 - [x] ~~PipeWire~~ **CPAL** integration successfully captures audio from default input device
 - [x] Audio is recorded continuously in 16kHz mono format suitable for Whisper
-- [x] Recording starts immediately when waystt launches
+- [x] Recording starts immediately when hotline launches
 - [x] Recording stops cleanly when SIGUSR1 or SIGUSR2 signal received
 - [x] Audio buffer is accessible for processing after recording stops
 - [x] Basic error handling for audio device unavailable/permission issues

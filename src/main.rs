@@ -247,9 +247,18 @@ async fn main() -> Result<()> {
                                                 match result {
                                                     Ok(transcript) => {
                                                         if !transcript.trim().is_empty() {
-                                                            eprintln!("Real-time transcription: \"{}\"", transcript);
+                                                            eprintln!(
+                                                                "Real-time transcription: \"{}\"",
+                                                                transcript
+                                                            );
                                                             if let Some(cmd) = &pipe_cmd {
-                                                                if let Err(e) = command::execute_with_input(cmd, &transcript).await {
+                                                                if let Err(e) =
+                                                                    command::execute_with_input(
+                                                                        cmd,
+                                                                        &transcript,
+                                                                    )
+                                                                    .await
+                                                                {
                                                                     eprintln!("Failed to execute pipe command: {}", e);
                                                                 }
                                                             } else {
@@ -259,14 +268,21 @@ async fn main() -> Result<()> {
                                                     }
                                                     Err(e) => {
                                                         eprintln!("Transcription error: {}", e);
-                                                        let _ = beep_player_clone.play_async(BeepType::Error).await;
+                                                        let _ = beep_player_clone
+                                                            .play_async(BeepType::Error)
+                                                            .await;
 
                                                         // Terminate the session
-                                                        state_clone.is_recording.store(false, Ordering::Relaxed);
-                                                        if let Some(task) = state_clone.ws_task.lock().await.take() {
+                                                        state_clone
+                                                            .is_recording
+                                                            .store(false, Ordering::Relaxed);
+                                                        if let Some(task) =
+                                                            state_clone.ws_task.lock().await.take()
+                                                        {
                                                             task.abort();
                                                         }
-                                                        *state_clone.audio_sender.lock().await = None;
+                                                        *state_clone.audio_sender.lock().await =
+                                                            None;
                                                         eprintln!("Transcription session terminated due to error.");
                                                         break; // Exit the loop
                                                     }

@@ -86,26 +86,61 @@ impl BeepPlayer {
     /// Defines the sound sequence for each beep type.
     fn get_beep_sequence(beep_type: BeepType) -> Vec<BeepSegment> {
         match beep_type {
-            BeepType::LineReady => vec![
-                BeepSegment { duration_ms: 1000.0, sound_type: SoundType::Dual(350.0, 440.0) },
-            ],
-            BeepType::RecordingStart => vec![
-                BeepSegment { duration_ms: 800.0, sound_type: SoundType::Single(1000.0) },
-            ],
+            BeepType::LineReady => vec![BeepSegment {
+                duration_ms: 1500.0,
+                sound_type: SoundType::Dual(350.0, 440.0),
+            }],
+            BeepType::RecordingStart => vec![BeepSegment {
+                duration_ms: 750.0,
+                sound_type: SoundType::Single(1024.0),
+            }],
             BeepType::RecordingStop => vec![
-                BeepSegment { duration_ms: 250.0, sound_type: SoundType::Dual(480.0, 620.0) },
-                BeepSegment { duration_ms: 250.0, sound_type: SoundType::Silence },
-                BeepSegment { duration_ms: 250.0, sound_type: SoundType::Dual(480.0, 620.0) },
-                BeepSegment { duration_ms: 250.0, sound_type: SoundType::Silence },
-                BeepSegment { duration_ms: 250.0, sound_type: SoundType::Dual(480.0, 620.0) },
-                BeepSegment { duration_ms: 250.0, sound_type: SoundType::Silence },
+                BeepSegment {
+                    duration_ms: 250.0,
+                    sound_type: SoundType::Dual(480.0, 620.0),
+                },
+                BeepSegment {
+                    duration_ms: 250.0,
+                    sound_type: SoundType::Silence,
+                },
+                BeepSegment {
+                    duration_ms: 250.0,
+                    sound_type: SoundType::Dual(480.0, 620.0),
+                },
+                BeepSegment {
+                    duration_ms: 250.0,
+                    sound_type: SoundType::Silence,
+                },
+                BeepSegment {
+                    duration_ms: 250.0,
+                    sound_type: SoundType::Dual(480.0, 620.0),
+                },
+                BeepSegment {
+                    duration_ms: 250.0,
+                    sound_type: SoundType::Silence,
+                },
             ],
             BeepType::Error => vec![
-                BeepSegment { duration_ms: 330.0, sound_type: SoundType::Single(950.0) },
-                BeepSegment { duration_ms: 50.0, sound_type: SoundType::Silence },
-                BeepSegment { duration_ms: 330.0, sound_type: SoundType::Single(1400.0) },
-                BeepSegment { duration_ms: 50.0, sound_type: SoundType::Silence },
-                BeepSegment { duration_ms: 330.0, sound_type: SoundType::Single(1800.0) },
+                BeepSegment {
+                    duration_ms: 276.0,
+                    sound_type: SoundType::Dual(913.8, 985.2),
+                },
+                BeepSegment {
+                    duration_ms: 2.0,
+                    sound_type: SoundType::Silence,
+                },
+                BeepSegment {
+                    duration_ms: 276.0,
+                    sound_type: SoundType::Dual(1370.6, 1428.5),
+                },
+                BeepSegment {
+                    duration_ms: 2.0,
+                    sound_type: SoundType::Silence,
+                },
+                BeepSegment {
+                    duration_ms: 380.0,
+                    sound_type: SoundType::Single(1776.7),
+                },
             ],
         }
     }
@@ -134,7 +169,10 @@ impl BeepPlayer {
         let config = match device.default_output_config() {
             Ok(config) => config,
             Err(e) => {
-                eprintln!("Warning: Failed to get audio output config for beeps: {}", e);
+                eprintln!(
+                    "Warning: Failed to get audio output config for beeps: {}",
+                    e
+                );
                 return Ok(());
             }
         };
@@ -159,7 +197,18 @@ impl BeepPlayer {
             cpal::SampleFormat::F32 => device.build_output_stream(
                 &config.into(),
                 move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
-                    Self::fill_audio_buffer_f32(data, &mut sample_index, &mut phase1, &mut phase2, sample_count, &sequence, sample_rate, channels, final_volume, &playing_clone);
+                    Self::fill_audio_buffer_f32(
+                        data,
+                        &mut sample_index,
+                        &mut phase1,
+                        &mut phase2,
+                        sample_count,
+                        &sequence,
+                        sample_rate,
+                        channels,
+                        final_volume,
+                        &playing_clone,
+                    );
                 },
                 |err| eprintln!("Audio stream error: {}", err),
                 None,
@@ -167,7 +216,18 @@ impl BeepPlayer {
             cpal::SampleFormat::I16 => device.build_output_stream(
                 &config.into(),
                 move |data: &mut [i16], _: &cpal::OutputCallbackInfo| {
-                    Self::fill_audio_buffer_i16(data, &mut sample_index, &mut phase1, &mut phase2, sample_count, &sequence, sample_rate, channels, final_volume, &playing_clone);
+                    Self::fill_audio_buffer_i16(
+                        data,
+                        &mut sample_index,
+                        &mut phase1,
+                        &mut phase2,
+                        sample_count,
+                        &sequence,
+                        sample_rate,
+                        channels,
+                        final_volume,
+                        &playing_clone,
+                    );
                 },
                 |err| eprintln!("Audio stream error: {}", err),
                 None,
@@ -202,7 +262,9 @@ impl BeepPlayer {
         for frame in data.chunks_mut(channels) {
             if *sample_index >= sample_count {
                 playing.store(false, Ordering::Relaxed);
-                for sample in frame { *sample = 0.0; }
+                for sample in frame {
+                    *sample = 0.0;
+                }
                 continue;
             }
 
@@ -237,7 +299,9 @@ impl BeepPlayer {
                 0.0
             };
 
-            for sample in frame { *sample = sample_value; }
+            for sample in frame {
+                *sample = sample_value;
+            }
             *sample_index += 1;
         }
     }
@@ -258,7 +322,9 @@ impl BeepPlayer {
         for frame in data.chunks_mut(channels) {
             if *sample_index >= sample_count {
                 playing.store(false, Ordering::Relaxed);
-                for sample in frame { *sample = 0; }
+                for sample in frame {
+                    *sample = 0;
+                }
                 continue;
             }
 
@@ -293,7 +359,9 @@ impl BeepPlayer {
                 0
             };
 
-            for sample in frame { *sample = sample_value; }
+            for sample in frame {
+                *sample = sample_value;
+            }
             *sample_index += 1;
         }
     }

@@ -49,9 +49,9 @@ impl RealtimeTranscriber {
         _language: Option<String>,
     ) -> Result<
         (
-            mpsc::Sender<Vec<u8>>,               // Send PCM16 audio data
+            mpsc::Sender<Vec<u8>>,                  // Send PCM16 audio data
             mpsc::Receiver<Result<String, String>>, // Receive transcriptions or errors
-            tokio::task::JoinHandle<()>,         // WebSocket task handle
+            tokio::task::JoinHandle<()>,            // WebSocket task handle
         ),
         TranscriptionError,
     > {

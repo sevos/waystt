@@ -49,9 +49,9 @@ impl RealtimeTranscriber {
         _language: Option<String>,
     ) -> Result<
         (
-            mpsc::Sender<Vec<u8>>,       // Send PCM16 audio data
-            mpsc::Receiver<String>,      // Receive transcriptions
-            tokio::task::JoinHandle<()>, // WebSocket task handle
+            mpsc::Sender<Vec<u8>>,               // Send PCM16 audio data
+            mpsc::Receiver<Result<String, String>>, // Receive transcriptions or errors
+            tokio::task::JoinHandle<()>,         // WebSocket task handle
         ),
         TranscriptionError,
     > {
@@ -103,7 +103,7 @@ impl RealtimeTranscriber {
 
         // Channels for audio input and transcription output
         let (audio_tx, mut audio_rx) = mpsc::channel::<Vec<u8>>(100);
-        let (transcript_tx, transcript_rx) = mpsc::channel::<String>(100);
+        let (transcript_tx, transcript_rx) = mpsc::channel::<Result<String, String>>(100);
 
         // Configure session for transcription only (not conversation)
         let session_config = json!({
@@ -195,43 +195,30 @@ impl RealtimeTranscriber {
                                                 item.get("transcript").and_then(|t| t.as_str())
                                             {
                                                 let _ = transcript_tx
-                                                    .send(transcript.to_string())
+                                                    .send(Ok(transcript.to_string()))
                                                     .await;
                                             }
                                         } else if let Some(transcript) = event.transcript {
-                                            let _ = transcript_tx.send(transcript).await;
+                                            let _ = transcript_tx.send(Ok(transcript)).await;
                                         }
                                     }
                                     "conversation.item.input_audio_transcription.delta" => {
-                                        // Handle partial transcriptions for real-time feedback
-                                        if let Some(delta) = event.delta {
-                                            if let Some(_transcript) =
-                                                delta.get("transcript").and_then(|t| t.as_str())
-                                            {
-                                                // For now, we'll skip partial transcriptions
-                                                // You could send these if you want real-time partial results
-                                            }
-                                        }
+                                        // Partial transcriptions are ignored for now.
                                     }
                                     "conversation.item.input_audio_transcription.failed" => {
-                                        eprintln!("Transcription failed");
+                                        let _ = transcript_tx
+                                            .send(Err("Transcription failed".to_string()))
+                                            .await;
                                     }
-                                    "input_audio_buffer.speech_started" => {
-                                        // Speech detected - could add a visual indicator here
-                                    }
-                                    "input_audio_buffer.speech_stopped" => {
-                                        // Speech stopped - VAD detected end of speech
-                                    }
-                                    "input_audio_buffer.committed" => {
-                                        // Audio committed for processing
-                                    }
+                                    "input_audio_buffer.speech_started" => {}
+                                    "input_audio_buffer.speech_stopped" => {}
+                                    "input_audio_buffer.committed" => {}
                                     "error" => {
                                         if let Some(error) = event.error {
-                                            eprintln!(
-                                                "Realtime API error: {}",
-                                                serde_json::to_string_pretty(&error)
-                                                    .unwrap_or_else(|_| error.to_string())
-                                            );
+                                            let error_msg = serde_json::to_string_pretty(&error)
+                                                .unwrap_or_else(|_| error.to_string());
+                                            eprintln!("Realtime API error: {}", error_msg);
+                                            let _ = transcript_tx.send(Err(error_msg)).await;
                                         }
                                     }
                                     "session.created" => {

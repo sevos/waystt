@@ -68,7 +68,7 @@ fn get_default_config_path() -> PathBuf {
 }
 
 /// State for managing recording and real-time transcription
-#[allow(dead_code)]
+#[derive(Clone)]
 struct RealtimeState {
     is_recording: Arc<AtomicBool>,
     audio_sender: Arc<Mutex<Option<mpsc::Sender<Vec<u8>>>>>,
@@ -143,13 +143,27 @@ async fn main() -> Result<()> {
         // Create channel for audio samples
         let (audio_tx, mut audio_rx) = tokio::sync::mpsc::unbounded_channel::<Vec<f32>>();
 
-        // Initialize audio recorder with the sender
-        let mut recorder = AudioRecorder::new()?;
+        // Initialize audio recorder
+        let mut recorder = match AudioRecorder::new() {
+            Ok(recorder) => recorder,
+            Err(e) => {
+                eprintln!("Failed to initialize audio recorder: {}", e);
+                let _ = beep_player.play_async(BeepType::Error).await;
+                return Err(e);
+            }
+        };
         recorder.set_audio_sender(audio_tx);
 
-        // Start recording immediately (continuous recording)
-        recorder.start_recording()?;
-        eprintln!("Continuous recording started. Microphone is active.");
+        // Start recording immediately
+        if let Err(e) = recorder.start_recording() {
+            eprintln!("Failed to start recording: {}", e);
+            let _ = beep_player.play_async(BeepType::Error).await;
+            return Err(e);
+        }
+
+        // Play "line ready" sound
+        let _ = beep_player.play_async(BeepType::LineReady).await;
+        eprintln!("Continuous recording started. Microphone is active. System ready.");
 
         // Initialize state
         let state = RealtimeState::new();
@@ -222,35 +236,55 @@ async fn main() -> Result<()> {
                                         // Enable streaming mode (recording is already active)
                                         state.is_recording.store(true, Ordering::Relaxed);
 
-                                        // Start task to handle transcriptions
+                                        // Clone handles for the spawned task
+                                        let state_clone = state.clone();
+                                        let beep_player_clone = beep_player.clone();
+
+                                        // Start task to handle transcriptions and errors
                                         let pipe_cmd = args.pipe_to.clone();
                                         tokio::spawn(async move {
-                                            while let Some(transcript) = transcript_rx.recv().await
-                                            {
-                                                if !transcript.trim().is_empty() {
-                                                    eprintln!(
-                                                        "Real-time transcription: \"{}\"",
-                                                        transcript
-                                                    );
-
-                                                    // Execute pipe command if provided
-                                                    if let Some(cmd) = &pipe_cmd {
-                                                        match command::execute_with_input(
-                                                            cmd,
-                                                            &transcript,
-                                                        )
-                                                        .await
-                                                        {
-                                                            Ok(exit_code) => {
-                                                                eprintln!("Command executed with exit code: {}", exit_code);
-                                                            }
-                                                            Err(e) => {
-                                                                eprintln!("Failed to execute pipe command: {}", e);
+                                            while let Some(result) = transcript_rx.recv().await {
+                                                match result {
+                                                    Ok(transcript) => {
+                                                        if !transcript.trim().is_empty() {
+                                                            eprintln!(
+                                                                "Real-time transcription: \"{}\"",
+                                                                transcript
+                                                            );
+                                                            if let Some(cmd) = &pipe_cmd {
+                                                                if let Err(e) =
+                                                                    command::execute_with_input(
+                                                                        cmd,
+                                                                        &transcript,
+                                                                    )
+                                                                    .await
+                                                                {
+                                                                    eprintln!("Failed to execute pipe command: {}", e);
+                                                                }
+                                                            } else {
+                                                                println!("{}", transcript);
                                                             }
                                                         }
-                                                    } else {
-                                                        // Output to stdout
-                                                        println!("{}", transcript);
+                                                    }
+                                                    Err(e) => {
+                                                        eprintln!("Transcription error: {}", e);
+                                                        let _ = beep_player_clone
+                                                            .play_async(BeepType::Error)
+                                                            .await;
+
+                                                        // Terminate the session
+                                                        state_clone
+                                                            .is_recording
+                                                            .store(false, Ordering::Relaxed);
+                                                        if let Some(task) =
+                                                            state_clone.ws_task.lock().await.take()
+                                                        {
+                                                            task.abort();
+                                                        }
+                                                        *state_clone.audio_sender.lock().await =
+                                                            None;
+                                                        eprintln!("Transcription session terminated due to error.");
+                                                        break; // Exit the loop
                                                     }
                                                 }
                                             }

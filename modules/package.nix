@@ -6,8 +6,8 @@
       cargoToml = builtins.fromTOML (builtins.readFile ../Cargo.toml);
     in
     {
-      packages.waystt = pkgs.rustPlatform.buildRustPackage {
-        pname = "waystt";
+      packages.hotline = pkgs.rustPlatform.buildRustPackage {
+        pname = "hotline";
         version = cargoToml.package.version;
 
         src = ../.;
@@ -54,15 +54,15 @@
 
         meta = with pkgs.lib; {
           description = cargoToml.package.description;
-          homepage = "https://github.com/nilp0inter/waystt";
+          homepage = "https://github.com/nilp0inter/hotline";
           license = licenses.gpl3Plus;
           maintainers = with maintainers; [ ];
-          mainProgram = "waystt";
+          mainProgram = "hotline";
           platforms = platforms.linux ++ platforms.darwin;
         };
       };
 
-      # Make waystt the default package
-      packages.default = config.packages.waystt;
+      # Make hotline the default package
+      packages.default = config.packages.hotline;
     };
 }

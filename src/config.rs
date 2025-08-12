@@ -5,7 +5,7 @@
 use anyhow::Result;
 use std::path::Path;
 
-/// Configuration for waystt loaded from environment variables
+/// Configuration for HotLine loaded from environment variables
 #[derive(Debug, Clone)]
 pub struct Config {
     pub openai_api_key: Option<String>,
@@ -167,7 +167,7 @@ mod tests {
     use std::io::Write;
     use tempfile::NamedTempFile;
 
-    // Helper function to clear all waystt environment variables
+    // Helper function to clear all hotline environment variables
     fn clear_env_vars() {
         env::remove_var("OPENAI_API_KEY");
         env::remove_var("OPENAI_BASE_URL");

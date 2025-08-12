@@ -63,12 +63,12 @@
             command = "pre-commit install";
           }
           {
-            help = "Run waystt with local .env file";
+            help = "Run HotLine with local .env file";
             name = "run-local";
             command = "cargo run -- --envfile .env";
           }
           {
-            help = "Run waystt in release mode with local .env";
+            help = "Run HotLine in release mode with local .env";
             name = "run-release";
             command = "cargo run --release -- --envfile .env";
           }

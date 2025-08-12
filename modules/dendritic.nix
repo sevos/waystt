@@ -5,7 +5,7 @@
   ];
 
   flake-file = {
-    description = "waystt - Speech-to-text tool for Wayland with stdout output";
+    description = "HotLine - A minimalist speech-to-text (STT) tool.";
 
     inputs = {
       nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";

@@ -7,7 +7,7 @@ Enhance signal handling and implement audio optimization for Whisper API
 Process signals to stop recording and optimize audio format for transcription
 
 ## User Story
-As a user, when I send a SIGUSR1 or SIGUSR2 signal, I want waystt to immediately stop recording, optimize the captured audio, and prepare it for transcription so that I get the best possible speech recognition results.
+As a user, when I send a SIGUSR1 or SIGUSR2 signal, I want hotline to immediately stop recording, optimize the captured audio, and prepare it for transcription so that I get the best possible speech recognition results.
 
 ## Technical Considerations
 - Extend existing signal handling to cleanly stop audio recording

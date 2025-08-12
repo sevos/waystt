@@ -1,7 +1,7 @@
-# Waystt - Wayland Speech-to-Text Tool Roadmap
+# HotLine - Speech-to-Text Tool Roadmap
 
 ## Project Overview
-**Waystt** is a minimal speech-to-text tool for Wayland environments. It starts recording audio when launched and transcribes on demand via Unix signals. Built in Rust for minimal dependencies and optimal performance.
+**HotLine** is a minimal speech-to-text tool. It starts recording audio when launched and transcribes on demand via Unix signals. Built in Rust for minimal dependencies and optimal performance.
 
 ## Architecture: Signal-Based Transcription
 1. **Launch**: Start continuous audio recording
@@ -19,7 +19,7 @@
 
 ## Simplified Workflow
 ```
-waystt [starts recording immediately]
+hotline [starts recording immediately]
 ├── Continuous audio recording to memory buffer
 ├── On SIGUSR1: Stop recording → Transcribe → Paste to active window → Exit
 ├── On SIGUSR2: Stop recording → Transcribe → Copy to clipboard only → Exit
@@ -70,7 +70,6 @@ waystt [starts recording immediately]
 7. **Deployment**
    - Optional systemd user service template
    - Installation script and documentation
-   - Package manager integration (AUR)
 
 ## Technical Details
 
@@ -108,10 +107,10 @@ Instead of slow character-by-character typing:
 # Single keybinding one-liners for compositor hotkeys:
 
 # Toggle recording and paste result (most common)
-bindkey "Super+R" "pgrep -x waystt >/dev/null && pkill -USR1 waystt || waystt &"
+bindkey "Super+R" "pgrep -x hotline >/dev/null && pkill -USR1 hotline || hotline &"
 
 # Toggle recording and copy result only  
-bindkey "Super+Shift+R" "pgrep -x waystt >/dev/null && pkill -USR2 waystt || waystt &"
+bindkey "Super+Shift+R" "pgrep -x hotline >/dev/null && pkill -USR2 hotline || hotline &"
 ```
 
 ## Technical Milestones

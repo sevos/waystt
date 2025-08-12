@@ -1,7 +1,7 @@
 # Technology Stack Documentation
 
 ## Overview
-This document outlines the technology choices for **waystt**, a signal-driven speech-to-text tool built with Rust. The stack prioritizes minimal dependencies, optimal performance, and reliable operation.
+This document outlines the technology choices for **HotLine**, a signal-driven speech-to-text tool built with Rust. The stack prioritizes minimal dependencies, optimal performance, and reliable operation.
 
 ## Core Technologies
 
@@ -189,8 +189,7 @@ async fn inject_text(text: &str) -> Result<()> {
 
 ### Installation Methods
 1. **Direct Download**: Single binary from GitHub releases
-2. **Cargo Install**: `cargo install waystt`
-3. **Package Managers**: AUR package for Arch Linux
-4. **Systemd Service**: Template service file included
+2. **Cargo Install**: `cargo install hotline`
+3. **Systemd Service**: Template service file included
 
-This technology stack ensures **waystt** remains a lightweight, reliable, and fast speech-to-text solution with minimal dependencies while leveraging Rust's strengths for systems programming.
+This technology stack ensures **HotLine** remains a lightweight, reliable, and fast speech-to-text solution with minimal dependencies while leveraging Rust's strengths for systems programming.

@@ -107,5 +107,5 @@ jobs:
     - name: Upload binary artifact
       uses: actions/upload-artifact@v4
       with:
-        name: waystt-linux-x86_64
-        path: target/release/waystt
+        name: hotline-linux-x86_64
+        path: target/release/hotline

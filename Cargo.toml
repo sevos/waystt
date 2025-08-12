@@ -45,3 +45,9 @@ lto = true
 codegen-units = 1
 panic = "abort"
 strip = true
+[[bin]]
+name = "play_beep"
+path = "play_beep.rs"
+[[bin]]
+name = "play_busy"
+path = "play_busy.rs"

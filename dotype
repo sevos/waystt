@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+TYPE_CMD="nix run nixpkgs#wtype -- "
+wl-copy
+$TYPE_CMD -d 1 -M ctrl -M shift v -m shift -m ctrl && echo | $TYPE_CMD -

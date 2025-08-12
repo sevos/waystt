@@ -35,7 +35,7 @@
               name = "cargo-test";
               entry = let
                 cargo_test = pkgs.writeShellScriptBin "cargo-test" ''
-                  BEEP_VOLUME=0.0 RUSTFLAGS="-A dead_code" ${pkgs.cargo}/bin/cargo test --verbose "$@"
+                  BEEP_VOLUME=0.0 RUSTFLAGS="-A dead_code" ${pkgs.cargo}/bin/cargo test --verbose
                 '';
               in "${cargo_test}/bin/cargo-test";
               language = "system";

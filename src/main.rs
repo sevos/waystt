@@ -143,13 +143,27 @@ async fn main() -> Result<()> {
         // Create channel for audio samples
         let (audio_tx, mut audio_rx) = tokio::sync::mpsc::unbounded_channel::<Vec<f32>>();
 
-        // Initialize audio recorder with the sender
-        let mut recorder = AudioRecorder::new()?;
+        // Initialize audio recorder
+        let mut recorder = match AudioRecorder::new() {
+            Ok(recorder) => recorder,
+            Err(e) => {
+                eprintln!("Failed to initialize audio recorder: {}", e);
+                let _ = beep_player.play_async(BeepType::Error).await;
+                return Err(e);
+            }
+        };
         recorder.set_audio_sender(audio_tx);
 
-        // Start recording immediately (continuous recording)
-        recorder.start_recording()?;
-        eprintln!("Continuous recording started. Microphone is active.");
+        // Start recording immediately
+        if let Err(e) = recorder.start_recording() {
+            eprintln!("Failed to start recording: {}", e);
+            let _ = beep_player.play_async(BeepType::Error).await;
+            return Err(e);
+        }
+
+        // Play "line ready" sound
+        let _ = beep_player.play_async(BeepType::LineReady).await;
+        eprintln!("Continuous recording started. Microphone is active. System ready.");
 
         // Initialize state
         let state = RealtimeState::new();

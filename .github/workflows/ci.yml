@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main]
   pull_request:
-    branches: [ main, develop ]
+    branches: [main]
 
 env:
   CARGO_TERM_COLOR: always
@@ -13,99 +13,125 @@ jobs:
   test:
     name: Test Suite
     runs-on: ubuntu-latest
-    
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        components: rustfmt, clippy
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
 
-    - name: Cache cargo registry
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-cargo-
+      - name: Cache cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          libasound2-dev \
-          pkg-config \
-          libpulse-dev \
-          libjack-jackd2-dev \
-          libpipewire-0.3-dev \
-          libspa-0.2-dev
+      - name: Check formatting
+        run: cargo fmt --all -- --check
 
-    - name: Check formatting
-      run: cargo fmt --all -- --check
+      - name: Run clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
 
-    - name: Clippy linting
-      run: cargo clippy --all-targets -- -D warnings
+      - name: Run tests
+        run: cargo test --verbose
 
-    - name: Run tests
-      run: cargo test --verbose
-      env:
-        # Disable audio tests in CI environment
-        RUST_TEST_THREADS: 1
-        BEEP_VOLUME: 0.0
-        CI: true
-
-    - name: Build release
-      run: cargo build --release --verbose
-
-  security_audit:
-    name: Security Audit
+  publish:
+    name: Publish to crates.io
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
-    
+    outputs:
+      published: ${{ steps.publish.outputs.publish }}
+      new_version: ${{ steps.publish.outputs.new_version }}
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@stable
+      - name: Run publish-action
+        id: publish
+        uses: tu6ge/publish-action@v0.4.6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
-    - name: Install cargo-audit
-      run: cargo install cargo-audit
+  release:
+    name: Build Release Binaries
+    needs: publish
+    if: needs.publish.outputs.published == 'true'
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+          - target: x86_64-apple-darwin
+            os: macos-13
+          - target: aarch64-apple-darwin
+            os: macos-14
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
 
-    - name: Run security audit
-      run: cargo audit
+      - name: Get version from Cargo.toml
+        id: get-version
+        run: |
+          VERSION=$(grep '^version = ' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
 
-  build_artifact:
-    name: Build Artifact
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install from crates.io and build
+        run: |
+          cargo install --version ${{ steps.get-version.outputs.version }} --target ${{ matrix.target }} --root ./install relfa
+
+      - name: Package binary
+        run: |
+          cp ./install/bin/relfa relfa-${{ steps.get-version.outputs.version }}-${{ matrix.target }}
+          echo "ASSET=relfa-${{ steps.get-version.outputs.version }}-${{ matrix.target }}" >> $GITHUB_ENV
+
+      - name: Upload release asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ASSET }}
+          path: ${{ env.ASSET }}
+
+  create-release:
+    name: Create Release
+    needs: [publish, release]
+    if: needs.publish.outputs.published == 'true'
     runs-on: ubuntu-latest
-    
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@stable
+      - name: Get version from Cargo.toml
+        id: get-version
+        run: |
+          VERSION=$(grep '^version = ' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
 
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          libasound2-dev \
-          pkg-config \
-          libpulse-dev \
-          libjack-jackd2-dev \
-          libpipewire-0.3-dev \
-          libspa-0.2-dev
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
 
-    - name: Build release
-      run: cargo build --release --verbose
-
-    - name: Upload binary artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: hotline-linux-x86_64
-        path: target/release/hotline
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.get-version.outputs.version }}
+          name: Release ${{ steps.get-version.outputs.version }}
+          files: ./artifacts/**/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

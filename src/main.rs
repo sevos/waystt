@@ -228,12 +228,11 @@ async fn run_stop_transcription() -> Result<()> {
 
 async fn run_toggle_transcription(profile_name: String) -> Result<()> {
     // Load configuration to get profiles
-    let config = Config::from_env();
+    let config = Config::load_with_precedence()?;
 
     // Get the specified profile
     let profile = config
-        .profiles
-        .get(&profile_name)
+        .get_profile(&profile_name)
         .ok_or_else(|| anyhow!("Profile '{}' not found in configuration", profile_name))?;
 
     // Create ToggleTranscription command from profile
@@ -261,7 +260,6 @@ async fn run_toggle_transcription(profile_name: String) -> Result<()> {
         }
     }
 }
-
 async fn run_sendcmd() -> Result<()> {
     use tokio::io::AsyncReadExt;
 

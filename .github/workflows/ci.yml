@@ -17,6 +17,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libasound2-dev pkg-config
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -86,6 +89,10 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Version: $VERSION"
 
+      - name: Install system dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libasound2-dev pkg-config
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -93,12 +100,12 @@ jobs:
 
       - name: Install from crates.io and build
         run: |
-          cargo install --version ${{ steps.get-version.outputs.version }} --target ${{ matrix.target }} --root ./install relfa
+          cargo install hotline --version ${{ steps.get-version.outputs.version }} --target ${{ matrix.target }} --root ./install
 
       - name: Package binary
         run: |
-          cp ./install/bin/relfa relfa-${{ steps.get-version.outputs.version }}-${{ matrix.target }}
-          echo "ASSET=relfa-${{ steps.get-version.outputs.version }}-${{ matrix.target }}" >> $GITHUB_ENV
+          cp ./install/bin/hotline hotline-${{ steps.get-version.outputs.version }}-${{ matrix.target }}
+          echo "ASSET=hotline-${{ steps.get-version.outputs.version }}-${{ matrix.target }}" >> $GITHUB_ENV
 
       - name: Upload release asset
         uses: actions/upload-artifact@v4

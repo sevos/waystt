@@ -70,7 +70,9 @@ prompt = "The user is a programmer, so expect technical terms."
 model = "gpt-4o-mini-transcribe"
 language = "es"
 prompt = "El usuario es un programador escribiendo código. Espera términos técnicos de programación, nombres de funciones, variables en inglés mezclados con español."
-vad_config = { SemanticVad = { eagerness = "medium" } }
+
+[profiles.coding-spanish.vad_config.SemanticVad]
+eagerness = "medium"
 
 [profiles.meeting]
 model = "whisper-1"
@@ -210,29 +212,19 @@ Common use cases:
 HotLine supports two VAD modes:
 
 ### Server VAD (Default)
-Traditional threshold-based voice detection:
-```json
-{
-  "vad_config": {
-    "ServerVad": {
-      "threshold": 0.5,
-      "prefix_padding_ms": 300,
-      "silence_duration_ms": 500
-    }
-  }
-}
+Traditional threshold-based voice detection (TOML configuration):
+```toml
+[profiles.example.vad_config.ServerVad]
+threshold = 0.5
+prefix_padding_ms = 300
+silence_duration_ms = 500
 ```
 
 ### Semantic VAD
-AI-powered context-aware voice detection:
-```json
-{
-  "vad_config": {
-    "SemanticVad": {
-      "eagerness": "medium"  // Options: "low", "medium", "high"
-    }
-  }
-}
+AI-powered context-aware voice detection (TOML configuration):
+```toml
+[profiles.example.vad_config.SemanticVad]
+eagerness = "medium"  # Options: "low", "medium", "high"
 ```
 
 ## Keybinding Examples
@@ -305,6 +297,80 @@ To type transcribed text directly into any application:
     type = "spawn_with_stdin"
     command = ["ydotool", "type", "--file", "-"]
     ```
+
+## Home Manager Configuration (NixOS)
+
+For NixOS users, HotLine can be configured declaratively using Home Manager:
+
+```nix
+{
+  programs.hotline = {
+    enable = true;
+    
+    # Enable systemd service with environment variables
+    systemdService = {
+      enable = true;
+      environmentFile = "/path/to/.env";  # Contains OPENAI_API_KEY
+      environment = {
+        # Required for ydotool integration
+        YDOTOOL_SOCKET = "/run/user/1000/.ydotool_socket";
+      };
+    };
+
+    settings = {
+      realtime_model = "whisper-1";
+      audio_buffer_duration_seconds = 300;
+      audio_sample_rate = 16000;
+      audio_channels = 1;
+      whisper_language = "auto";
+      enable_audio_feedback = true;
+      beep_volume = 0.1;
+      rust_log = "info";
+      
+      profiles = {
+        coding = {
+          model = "gpt-4o-mini-transcribe";
+          language = "en";
+          prompt = "The user is a programmer, so expect technical terms.";
+          
+          # AI-powered voice detection for better accuracy
+          vad_config = {
+            SemanticVad = {
+              eagerness = "medium";
+            };
+          };
+          
+          # Type transcribed text directly and add newline
+          hooks = {
+            on_transcription_receive = {
+              type = "spawn_with_stdin";
+              command = [ "ydotool" "type" "--file" "-" ];
+            };
+            on_transcription_stop = {
+              type = "spawn";
+              command = [ "ydotool" "key" "28:1" "28:0" ];  # Press Enter
+            };
+          };
+        };
+      };
+    };
+  };
+}
+```
+
+**Key features shown:**
+- **Environment file**: Secure API key storage using `environmentFile`
+- **Environment variables**: Pass `YDOTOOL_SOCKET` for tool integration
+- **Semantic VAD**: AI-powered voice activity detection for coding contexts
+- **Direct typing**: Use `ydotool` to type transcribed text into any application
+- **Automatic newline**: Press Enter after transcription stops
+
+**Required setup for ydotool integration:**
+```bash
+# Install and enable ydotool service
+sudo usermod -a -G input $USER
+systemctl --user enable --now ydotool.service
+```
 
 ## Keybinding Integration
 

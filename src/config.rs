@@ -19,6 +19,7 @@ pub struct TranscriptionProfile {
 
 /// Configuration for HotLine loaded from environment variables
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Config {
     pub openai_api_key: Option<String>,
     pub openai_base_url: Option<String>,
@@ -33,7 +34,6 @@ pub struct Config {
     pub rust_log: String,
     pub enable_audio_feedback: bool,
     pub beep_volume: f32,
-    #[serde(default)]
     pub profiles: HashMap<String, TranscriptionProfile>,
 }
 

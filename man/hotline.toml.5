@@ -134,17 +134,15 @@ command = ["notify-send", "Recording stopped"]
 Voice Activity Detection can be configured in two modes:
 .SS Server VAD (threshold-based):
 .nf
-vad_config = { ServerVad = {
-    threshold = 0.5,           # 0.0 to 1.0
-    prefix_padding_ms = 300,   # milliseconds before speech
-    silence_duration_ms = 500  # milliseconds of silence to stop
-} }
+[profiles.example.vad_config.ServerVad]
+threshold = 0.5           # 0.0 to 1.0
+prefix_padding_ms = 300   # milliseconds before speech
+silence_duration_ms = 500 # milliseconds of silence to stop
 .fi
 .SS Semantic VAD (AI-powered):
 .nf
-vad_config = { SemanticVad = {
-    eagerness = "medium"  # "low", "medium", or "high"
-} }
+[profiles.example.vad_config.SemanticVad]
+eagerness = "medium"  # "low", "medium", or "high"
 .fi
 .SH COMPLETE EXAMPLE
 .nf
@@ -194,7 +192,9 @@ command = ["wl-copy"]
 model = "gpt-4o-mini-transcribe"
 language = "es"
 prompt = "El usuario es un programador escribiendo código."
-vad_config = { SemanticVad = { eagerness = "medium" } }
+
+[profiles.coding-spanish.vad_config.SemanticVad]
+eagerness = "medium"
 
 # Profile for meetings with file output
 [profiles.meeting]
@@ -219,11 +219,11 @@ command = ["sh", "-c", "echo 'Meeting ended at $(date)' >> /tmp/meeting_log.txt"
 model = "gpt-4o-transcribe"
 language = "en"
 prompt = "Medical dictation with technical terminology."
-vad_config = { ServerVad = {
-    threshold = 0.4,
-    prefix_padding_ms = 500,
-    silence_duration_ms = 1000
-} }
+
+[profiles.medical.vad_config.ServerVad]
+threshold = 0.4
+prefix_padding_ms = 500
+silence_duration_ms = 1000
 .fi
 .SH VALIDATION
 Configuration is validated when:

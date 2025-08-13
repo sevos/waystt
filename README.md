@@ -1,6 +1,6 @@
 # ☎️ HotLine
 
-**HotLine** is an open source, minimalist speech-to-text (STT) tool that channels the charm of classic telephony into a modern user experience powered by OpenAI’s streaming transcription.
+**HotLine** is an open source, minimalist speech-to-text (STT) tool that channels the charm of classic telephony into a modern user experience powered by OpenAI's real-time transcription API.
 
 ## 🔊 Philosophy
 
@@ -13,13 +13,13 @@
 
 ## 🎧 User Experience
 
-When you activate HotLine, it plays a soft **off-hook tone**, just like picking up an old-school phone. That’s your cue: HotLine is now ready.
+When you activate HotLine, it plays a soft **off-hook tone**, just like picking up an old-school phone. That's your cue: HotLine is now ready.
 
-Tap the "start listening" signal? You’ll hear a crisp **beep**, like an answering machine — and you're live. Your speech starts flowing into the current text field as keystrokes, automatically and naturally.
+Tap the "start listening" signal? You'll hear a crisp **beep**, like an answering machine — and you're live. Your speech starts flowing into the current text field as keystrokes, automatically and naturally.
 
-Need to stop? The familiar **"beep-beep-beep"** of a dropped call lets you know it’s over.
+Need to stop? The familiar **"beep-beep-beep"** of a dropped call lets you know it's over.
 
-And if something goes sideways — say, no API connection — you’ll hear the unmistakable **three-tone SIT error signal** you’ve heard a thousand times before.
+And if something goes sideways — say, no API connection — you'll hear the unmistakable **three-tone SIT error signal** you've heard a thousand times before.
 
 No visual distractions. Just you, your voice, and the comforting sounds of analog feedback.
 
@@ -59,145 +59,346 @@ No visual distractions. Just you, your voice, and the comforting sounds of analo
 
 ## Configuration
 
-`hotline` is configured using environment variables. It automatically loads them from `~/.config/hotline/.env`.
+HotLine supports multiple configuration methods with the following precedence (highest to lowest):
+1. Command-line arguments
+2. Environment variables
+3. TOML configuration file
+4. Default values
 
-1.  **Create the configuration file**:
-    ```bash
-    mkdir -p ~/.config/hotline
-    touch ~/.config/hotline/.env
-    ```
+### TOML Configuration (Recommended)
 
-2.  **Edit the file** and add your OpenAI API key:
-    ```ini
-    # Required: Your OpenAI API Key
-    OPENAI_API_KEY=your_api_key_here
+Create a configuration file at `~/.config/hotline/hotline.toml`:
 
-    # Optional: Specify the real-time model to use
-    # Default: gpt-4o-mini-realtime-preview
-    REALTIME_MODEL=gpt-4o-mini-realtime-preview
+```toml
+# OpenAI API configuration
+openai_api_key = "your-api-key-here"
 
-    # Optional: Set the language for transcription (default: auto-detect)
-    # Use ISO 639-1 codes, e.g., "en", "es", "fr"
-    WHISPER_LANGUAGE=en
+# Real-time transcription model
+# Options: "whisper-1", "gpt-4o-transcribe", "gpt-4o-mini-transcribe"
+realtime_model = "whisper-1"
 
-    # Optional: Disable audio feedback beeps (default: true)
-    ENABLE_AUDIO_FEEDBACK=false
+# Audio configuration
+audio_buffer_duration_seconds = 300  # 5 minutes
+audio_sample_rate = 16000
+audio_channels = 1
 
-    # Optional: Adjust beep volume (default: 0.1, range: 0.0 to 1.0)
-    BEEP_VOLUME=0.05
-    ```
+# Whisper settings
+whisper_language = "auto"  # or "en", "es", "fr", etc.
+
+# Audio feedback
+enable_audio_feedback = true
+beep_volume = 0.1  # Range: 0.0 to 1.0
+
+# Transcription profiles for different use cases
+[profiles.default]
+model = "whisper-1"
+language = "en"
+
+[profiles.coding]
+model = "gpt-4o-mini-transcribe"
+language = "en"
+prompt = "The user is a programmer, so expect technical terms."
+
+[profiles.coding-spanish]
+model = "gpt-4o-mini-transcribe"
+language = "es"
+prompt = "El usuario es un programador escribiendo código. Espera términos técnicos de programación, nombres de funciones, variables en inglés mezclados con español."
+vad_config = { SemanticVad = { eagerness = "medium" } }
+
+[profiles.meeting]
+model = "whisper-1"
+language = "auto"
+prompt = "This is a business meeting with multiple speakers."
+```
+
+### Environment Variables
+
+Alternatively, create `~/.config/hotline/.env`:
+
+```ini
+# Required: Your OpenAI API Key
+OPENAI_API_KEY=your_api_key_here
+
+# Optional: Specify the transcription model
+# Options: whisper-1, gpt-4o-transcribe, gpt-4o-mini-transcribe
+REALTIME_MODEL=whisper-1
+
+# Optional: Set the language for transcription (default: auto-detect)
+# Use ISO 639-1 codes, e.g., "en", "es", "fr"
+WHISPER_LANGUAGE=en
+
+# Optional: Disable audio feedback beeps (default: true)
+ENABLE_AUDIO_FEEDBACK=false
+
+# Optional: Adjust beep volume (default: 0.1, range: 0.0 to 1.0)
+BEEP_VOLUME=0.05
+```
+
+### Viewing Configuration
+
+To validate and view your current configuration:
+
+```bash
+hotline config
+```
 
 ## Usage
 
-The core of `hotline` is a long-running process that you control with signals.
+HotLine now uses a modern architecture with subcommands and UNIX socket communication.
 
-1.  **Start the `hotline` service** in a terminal or as a background process. This will immediately start recording audio.
-    ```bash
-    # Run in a terminal to see logs
-    hotline
+### Starting the Daemon
 
-    # Or, run in the background
-    hotline &
-    ```
-    You can optionally pipe the output to another command:
-    ```bash
-    # Pipe to wl-copy to automatically copy transcripts to the clipboard
-    hotline --pipe-to wl-copy &
+Start the HotLine daemon (background service):
 
-    # Pipe to ydotool to type the transcript directly (see ydotool setup below)
-    hotline --pipe-to "ydotool type --file -" &
-    ```
+```bash
+# Run in foreground to see logs
+hotline daemon
 
-2.  **Control transcription with signals**:
-    -   **Start Streaming (`SIGUSR1`)**: Send the `SIGUSR1` signal to `hotline` to begin streaming audio to OpenAI.
-        ```bash
-        pkill --signal SIGUSR1 hotline
-        ```
-    -   **Stop Streaming (`SIGUSR2`)**: Send the `SIGUSR2` signal to stop the stream. The application will continue recording in the background, ready for the next time you send `SIGUSR1`.
-        ```bash
-        pkill --signal SIGUSR2 hotline
-        ```
-    -   **Shutdown (`SIGTERM`)**: To stop the `hotline` application completely, send the `SIGTERM` signal.
-        ```bash
-        pkill --signal SIGTERM hotline
-        ```
+# Or run in background
+hotline daemon &
+
+# Use a custom environment file
+hotline daemon --envfile /path/to/.env
+```
+
+### Controlling Transcription
+
+HotLine provides two ways to control transcription:
+
+#### User-Friendly Commands (Recommended)
+
+```bash
+# Start transcription with a profile
+hotline start-transcription default
+hotline start-transcription coding
+hotline start-transcription coding-spanish
+
+# Stop current transcription
+hotline stop-transcription
+```
+
+#### Advanced JSON Commands
+
+For advanced users and scripting, you can send raw JSON commands:
+
+```bash
+# Start transcription with custom settings
+echo '{
+  "StartTranscription": {
+    "model": "gpt-4o-transcribe",
+    "language": "en",
+    "prompt": "Technical documentation",
+    "command": {
+      "SpawnForEachTranscription": {
+        "command": ["wl-copy"]
+      }
+    }
+  }
+}' | hotline sendcmd
+
+# Stop transcription
+echo '{"StopTranscription": null}' | hotline sendcmd
+```
+
+### Command Execution
+
+You can configure commands to be executed with each transcription. This is useful for:
+- Copying text to clipboard: `["wl-copy"]`
+- Typing text directly: `["ydotool", "type", "--file", "-"]`
+- Saving to a file: `["tee", "-a", "/tmp/transcript.txt"]`
+
+Configure commands in your profile or pass them in the JSON command.
+
+## Voice Activity Detection (VAD)
+
+HotLine supports two VAD modes:
+
+### Server VAD (Default)
+Traditional threshold-based voice detection:
+```json
+{
+  "vad_config": {
+    "ServerVad": {
+      "threshold": 0.5,
+      "prefix_padding_ms": 300,
+      "silence_duration_ms": 500
+    }
+  }
+}
+```
+
+### Semantic VAD
+AI-powered context-aware voice detection:
+```json
+{
+  "vad_config": {
+    "SemanticVad": {
+      "eagerness": "medium"  // Options: "low", "medium", "high"
+    }
+  }
+}
+```
 
 ## Keybinding Examples
 
-The most effective way to use `hotline` is to bind the `SIGUSR1` and `SIGUSR2` signals to hotkeys. Here is an example of a "push-to-talk" style keybinding.
-
-**Keybinding Logic**:
--   When you press and hold the key, it sends `SIGUSR1` to start streaming.
--   When you release the key, it sends `SIGUSR2` to stop streaming.
+The most effective way to use HotLine is to bind commands to hotkeys.
 
 ### Hyprland
 
-Add this to your `~/.config/hypr/hyprland.conf`:
+Add to `~/.config/hypr/hyprland.conf`:
 
 ```ini
-# Real-time speech-to-text with hotline
-bind = SUPER, R, submap, speech
+# Start/stop transcription with Super+R
+bind = SUPER, R, exec, hotline start-transcription default
+bind = SUPER SHIFT, R, exec, hotline stop-transcription
+
+# Push-to-talk style with submap
+bind = SUPER, T, submap, speech
 submap = speech
-binde=, SUPER_L, exec, pkill --signal SIGUSR1 hotline
-bindr=, SUPER_L, exec, pkill --signal SIGUSR2 hotline
+binde=, SUPER_L, exec, hotline start-transcription coding
+bindr=, SUPER_L, exec, hotline stop-transcription
 bind=, escape, submap, reset
 submap = reset
 ```
-*Note: This uses the `SUPER` key itself to trigger speech. You can change `SUPER_L` to another key if you prefer.*
 
 ### Niri
 
-Key release events are not directly supported in the same way. A toggle approach is more suitable.
-
 Add to `~/.config/niri/config.kdl`:
+
 ```kdl
 binds {
-    // Toggle hotline streaming
+    // Toggle transcription
     Mod+R {
-        spawn "sh" "-c" "if pgrep -x hotline-streaming >/dev/null; then pkill --signal SIGUSR2 hotline && rm /tmp/hotline-streaming; else pkill --signal SIGUSR1 hotline && touch /tmp/hotline-streaming; fi";
+        spawn "sh" "-c" "if pgrep -f 'hotline daemon' >/dev/null; then hotline stop-transcription || hotline start-transcription default; else echo 'HotLine daemon not running'; fi";
+    }
+    
+    // Start with specific profile
+    Mod+Shift+R {
+        spawn "hotline" "start-transcription" "coding";
     }
 }
 ```
-*This binding uses a temporary file to track the streaming state.*
 
-### Example: Using `ydotool` for Direct Typing
+### Using `ydotool` for Direct Typing
 
-If you want `hotline` to type your speech directly into any application, you need `ydotool`.
+To type transcribed text directly into any application:
 
 1.  **Install `ydotool`**:
     ```bash
     # Arch Linux
     sudo pacman -S ydotool
     ```
+
 2.  **Setup permissions**:
     ```bash
     sudo usermod -a -G input $USER
     ```
+
 3.  **Start the `ydotool` daemon**:
     ```bash
     systemctl --user enable --now ydotool.service
     ```
-4.  **Start `hotline` with the correct pipe**:
-    ```bash
-    hotline --pipe-to "ydotool type --file -" &
+
+4.  **Configure in your profile**:
+    ```toml
+    [profiles.typing]
+    model = "whisper-1"
+    language = "en"
+    command = { SpawnForEachTranscription = { command = ["ydotool", "type", "--file", "-"] } }
     ```
+
+## Architecture
+
+HotLine uses a client-server architecture:
+
+- **Daemon**: Long-running background service that handles audio recording and transcription
+- **Client Commands**: Send commands to the daemon via UNIX socket
+- **Socket Path**: `$XDG_RUNTIME_DIR/hotline.sock` (or `~/.config/hotline/hotline.sock`)
 
 ## Troubleshooting
 
--   **No transcription**:
-    -   Ensure `hotline` is running (`pgrep -x hotline`).
-    -   Verify your `OPENAI_API_KEY` is correct and has credits.
-    -   Check the `hotline` logs for error messages by running it in a terminal.
--   **Audio issues**:
-    -   Ensure `pipewire` is running: `systemctl --user status pipewire`.
-    -   Check that your microphone is not muted (`pavucontrol`, `alsamixer`).
+### No transcription
+- Ensure the daemon is running: `pgrep -f "hotline daemon"`
+- Verify your `OPENAI_API_KEY` is correct and has credits
+- Check daemon logs by running in foreground: `hotline daemon`
+- Verify socket exists: `ls -la $XDG_RUNTIME_DIR/hotline.sock`
+
+### Audio issues
+- Ensure PipeWire is running: `systemctl --user status pipewire`
+- Check microphone is not muted: `pavucontrol` or `alsamixer`
+- Test with different audio sample rates in config
+
+### Socket errors
+- Check socket permissions: `ls -la $XDG_RUNTIME_DIR/hotline.sock`
+- Ensure only one daemon instance is running
+- Try removing stale socket: `rm $XDG_RUNTIME_DIR/hotline.sock`
+
+### Configuration issues
+- Validate configuration: `hotline config`
+- Check file permissions on config files
+- Ensure TOML syntax is correct
 
 ## Development
 
--   **Build**: `cargo build --release`
--   **Run tests**: `BEEP_VOLUME=0.0 cargo test`
--   **Check formatting**: `cargo fmt --all -- --check`
--   **Run linter**: `cargo clippy --all-targets -- -D warnings`
+### Building from Source
+
+```bash
+# Clone the repository
+git clone https://github.com/sevos/hotline
+cd hotline
+
+# Build release version
+cargo build --release
+
+# Binary will be at target/release/hotline
+```
+
+### Testing
+
+```bash
+# Run all tests (with audio feedback disabled)
+BEEP_VOLUME=0.0 cargo test
+
+# Run specific test
+BEEP_VOLUME=0.0 cargo test test_name
+
+# Check code formatting
+cargo fmt --all -- --check
+
+# Run linter
+cargo clippy --all-targets -- -D warnings
+```
+
+### Project Structure
+
+```
+hotline/
+├── src/
+│   ├── main.rs           # CLI and subcommands
+│   ├── socket.rs         # UNIX socket communication
+│   ├── config.rs         # Configuration management
+│   ├── audio.rs          # Audio recording (PipeWire/CPAL)
+│   ├── beep.rs           # Audio feedback system
+│   ├── transcription/
+│   │   ├── mod.rs        # Transcription provider abstraction
+│   │   └── realtime.rs   # OpenAI Real-time API client
+│   └── command.rs        # Command execution utilities
+├── hotline.toml.example  # Example configuration
+└── README.md
+```
+
+## Contributing
+
+Contributions are welcome! Please:
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Run tests and linting
+5. Submit a pull request
+
+## License
+
+Licensed under GPL v3.0 or later. See [LICENSE](LICENSE) for details.
 
 ---
-*Licensed under GPL v3.0 or later. Source code: https://github.com/sevos/hotline*
+*Source code: https://github.com/sevos/hotline*

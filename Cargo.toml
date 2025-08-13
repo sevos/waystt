@@ -8,7 +8,7 @@ authors = ["Artur Roszczyk <artur.roszczyk@gmail.com>"]
 
 [dependencies]
 # Core dependencies (essential)
-tokio = { version = "1.0", features = ["full"] }
+tokio = { version = "1.0", features = ["full", "io-util", "net"] }
 anyhow = "1.0"
 signal-hook = "0.3"
 signal-hook-tokio = { version = "0.3", features = ["futures-v0_3"] }
@@ -27,6 +27,7 @@ base64 = "0.22"
 
 # WebSocket for real-time transcription
 tokio-tungstenite = { version = "0.27.0", features = ["native-tls"] }
+toml = "0.9.5"
 
 
 [dev-dependencies]

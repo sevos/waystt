@@ -1,0 +1,145 @@
+.TH HOTLINE-STOP-TRANSCRIPTION 1 "August 2025" "hotline 0.2.3" "User Commands"
+.SH NAME
+hotline-stop-transcription \- stop the current speech-to-text transcription session
+.SH SYNOPSIS
+.B hotline stop-transcription
+.SH DESCRIPTION
+The
+.B hotline stop-transcription
+command stops the currently active transcription session. It sends a StopTranscription message to the running hotline daemon via UNIX socket.
+.PP
+When transcription is stopped:
+.IP \(bu 2
+Audio streaming to OpenAI stops
+.IP \(bu 2
+Final transcriptions are processed
+.IP \(bu 2
+The WebSocket connection is closed
+.IP \(bu 2
+Audio recording continues in the background
+.IP \(bu 2
+A "beep-beep-beep" sound confirms the stop (if audio feedback is enabled)
+.SH BEHAVIOR
+.SS Audio Recording:
+The daemon continues recording audio even after transcription stops. This allows for instant resumption when start-transcription is called again.
+.SS Pending Transcriptions:
+The daemon waits briefly (1 second) for any final transcription results before fully closing the session.
+.SS Multiple Sessions:
+Only one transcription session can be active at a time. Calling stop-transcription when no session is active returns an error but doesn't affect the daemon.
+.SH EXAMPLES
+.SS Basic usage:
+.nf
+# Stop current transcription
+hotline stop-transcription
+.fi
+.SS In scripts:
+.nf
+#!/bin/bash
+# Toggle transcription
+if hotline stop-transcription 2>/dev/null; then
+    echo "Transcription stopped"
+else
+    hotline start-transcription default
+    echo "Transcription started"
+fi
+.fi
+.SS With keybindings (Hyprland):
+.nf
+# ~/.config/hypr/hyprland.conf
+# Start on press, stop on release
+bind = SUPER, R, submap, speech
+submap = speech
+binde=, SUPER_L, exec, hotline start-transcription default
+bindr=, SUPER_L, exec, hotline stop-transcription
+bind=, escape, submap, reset
+submap = reset
+.fi
+.SS Push-to-talk implementation:
+.nf
+#!/bin/bash
+# push_to_talk.sh - Hold key to transcribe
+
+# Start transcription
+hotline start-transcription default
+
+# Trap to ensure cleanup on script exit
+trap "hotline stop-transcription" EXIT
+
+# Wait for user to release key (simplified)
+read -n 1 -s -r
+
+# Stop transcription
+hotline stop-transcription
+.fi
+.SH EXIT STATUS
+.TP
+.B 0
+Successfully sent stop command to daemon
+.TP
+.B 1
+Failed to send command or no active session
+.SH ERROR MESSAGES
+.TP
+.B "Not currently streaming"
+No active transcription session to stop
+.TP
+.B "Daemon not running. Socket not found"
+The hotline daemon is not running
+.TP
+.B "Failed to send command"
+Communication error with the daemon
+.SH AUDIO FEEDBACK
+If audio feedback is enabled (default), stopping transcription produces:
+.IP \(bu 2
+.B Beep-beep-beep:
+Confirmation that recording has stopped
+.PP
+This nostalgic "call ended" sound provides immediate feedback without visual distraction.
+.SH INTERACTION WITH DAEMON
+The stop command:
+.IP 1. 4
+Sends StopTranscription message via UNIX socket
+.IP 2. 4
+Daemon stops streaming audio to OpenAI
+.IP 3. 4
+Daemon closes WebSocket connection
+.IP 4. 4
+Daemon continues background audio recording
+.IP 5. 4
+Daemon remains ready for next session
+.SH TROUBLESHOOTING
+.SS Command fails:
+.IP \(bu 2
+Verify daemon is running: \fBpgrep -f "hotline daemon"\fR
+.IP \(bu 2
+Check socket exists: \fBls -la $XDG_RUNTIME_DIR/hotline.sock\fR
+.IP \(bu 2
+Ensure a session is active before stopping
+.SS No audio feedback:
+.IP \(bu 2
+Check ENABLE_AUDIO_FEEDBACK in config
+.IP \(bu 2
+Verify BEEP_VOLUME is not 0.0
+.IP \(bu 2
+Test audio system: \fBspeaker-test -t sine -f 1000 -l 1\fR
+.SS Session doesn't stop:
+.IP \(bu 2
+Check daemon logs for errors
+.IP \(bu 2
+Try restarting daemon: \fBpkill hotline && hotline daemon &\fR
+.IP \(bu 2
+Verify network connection to OpenAI
+.SH FILES
+.TP
+.I $XDG_RUNTIME_DIR/hotline.sock
+UNIX socket for daemon communication
+.SH SEE ALSO
+.BR hotline (1),
+.BR hotline-daemon (1),
+.BR hotline-start-transcription (1),
+.BR hotline-sendcmd (1)
+.SH AUTHOR
+Written by the HotLine contributors.
+.SH COPYRIGHT
+Copyright (C) 2025 HotLine contributors.
+License GPLv3+: GNU GPL version 3 or later.

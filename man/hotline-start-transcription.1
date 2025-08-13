@@ -1,0 +1,184 @@
+.TH HOTLINE-START-TRANSCRIPTION 1 "August 2025" "hotline 0.2.3" "User Commands"
+.SH NAME
+hotline-start-transcription \- start a speech-to-text transcription session
+.SH SYNOPSIS
+.B hotline start-transcription
+.I PROFILE
+.SH DESCRIPTION
+The
+.B hotline start-transcription
+command initiates a new transcription session using settings from a named profile defined in the configuration file.
+.PP
+This command sends a StartTranscription message to the running hotline daemon via UNIX socket. The daemon must be running for this command to work.
+.SH ARGUMENTS
+.TP
+.I PROFILE
+The name of the transcription profile to use. This profile must be defined in the configuration file under the [profiles.PROFILE] section.
+.SH PROFILES
+Profiles are defined in ~/.config/hotline/hotline.toml and can specify:
+.TP
+.B model
+Transcription model (whisper-1, gpt-4o-transcribe, gpt-4o-mini-transcribe)
+.TP
+.B language
+Language code in ISO 639-1 format (e.g., "en", "es", "fr")
+.TP
+.B prompt
+Context prompt to guide transcription accuracy
+.TP
+.B command
+Command to execute with transcribed text
+.TP
+.B vad_config
+Voice Activity Detection configuration (ServerVad or SemanticVad)
+.SH PROFILE EXAMPLES
+.SS Default profile:
+.nf
+[profiles.default]
+model = "whisper-1"
+language = "en"
+.fi
+.SS Coding profile with technical terms:
+.nf
+[profiles.coding]
+model = "gpt-4o-mini-transcribe"
+language = "en"
+prompt = "The user is a programmer, expect technical terms."
+command = { SpawnForEachTranscription = { command = ["wl-copy"] } }
+.fi
+.SS Spanish coding with semantic VAD:
+.nf
+[profiles.coding-spanish]
+model = "gpt-4o-mini-transcribe"
+language = "es"
+prompt = "El usuario es un programador escribiendo código."
+vad_config = { SemanticVad = { eagerness = "medium" } }
+.fi
+.SS Meeting transcription:
+.nf
+[profiles.meeting]
+model = "whisper-1"
+language = "auto"
+prompt = "Business meeting with multiple speakers."
+command = { SpawnForEachTranscription = { command = ["tee", "-a", "/tmp/meeting.txt"] } }
+.fi
+.SH VOICE ACTIVITY DETECTION
+Two VAD modes are available:
+.SS Server VAD (traditional):
+.nf
+vad_config = { ServerVad = {
+    threshold = 0.5,
+    prefix_padding_ms = 300,
+    silence_duration_ms = 500
+} }
+.fi
+.SS Semantic VAD (AI-powered):
+.nf
+vad_config = { SemanticVad = {
+    eagerness = "medium"  # low, medium, or high
+} }
+.fi
+.SH COMMAND EXECUTION
+Profiles can specify commands to process transcribed text:
+.SS Copy to clipboard:
+.nf
+command = { SpawnForEachTranscription = { command = ["wl-copy"] } }
+.fi
+.SS Type directly via ydotool:
+.nf
+command = { SpawnForEachTranscription = { command = ["ydotool", "type", "--file", "-"] } }
+.fi
+.SS Append to file:
+.nf
+command = { SpawnForEachTranscription = { command = ["tee", "-a", "/tmp/transcript.txt"] } }
+.fi
+.SH EXAMPLES
+.SS Basic usage:
+.nf
+# Start with default profile
+hotline start-transcription default
+
+# Start with coding profile
+hotline start-transcription coding
+
+# Start with Spanish coding profile
+hotline start-transcription coding-spanish
+.fi
+.SS In keybindings (Hyprland):
+.nf
+# ~/.config/hypr/hyprland.conf
+bind = SUPER, R, exec, hotline start-transcription default
+bind = SUPER, C, exec, hotline start-transcription coding
+.fi
+.SS In scripts:
+.nf
+#!/bin/bash
+# Start transcription for note-taking
+hotline start-transcription meeting
+
+# Wait for user to speak
+echo "Transcription started. Press Enter to stop..."
+read
+
+# Stop transcription
+hotline stop-transcription
+.fi
+.SH EXIT STATUS
+.TP
+.B 0
+Successfully sent start command to daemon
+.TP
+.B 1
+Failed to send command (daemon not running, profile not found, etc.)
+.SH ERROR MESSAGES
+.TP
+.B "Profile 'NAME' not found in configuration"
+The specified profile doesn't exist in hotline.toml
+.TP
+.B "Daemon not running. Socket not found"
+The hotline daemon is not running
+.TP
+.B "Failed to send command"
+Communication error with the daemon
+.SH TROUBLESHOOTING
+.SS Profile not found:
+.IP \(bu 2
+Check profile exists: \fBhotline config\fR
+.IP \(bu 2
+Verify TOML syntax in configuration file
+.IP \(bu 2
+Ensure profile name matches exactly (case-sensitive)
+.SS Daemon not responding:
+.IP \(bu 2
+Check daemon is running: \fBpgrep -f "hotline daemon"\fR
+.IP \(bu 2
+Start daemon: \fBhotline daemon &\fR
+.IP \(bu 2
+Check socket exists: \fBls -la $XDG_RUNTIME_DIR/hotline.sock\fR
+.SS Transcription not working:
+.IP \(bu 2
+Verify OpenAI API key is valid
+.IP \(bu 2
+Check API credits/quota
+.IP \(bu 2
+Review daemon logs for errors
+.IP \(bu 2
+Test with a simpler profile first
+.SH FILES
+.TP
+.I ~/.config/hotline/hotline.toml
+Configuration file containing profile definitions
+.TP
+.I $XDG_RUNTIME_DIR/hotline.sock
+UNIX socket for daemon communication
+.SH SEE ALSO
+.BR hotline (1),
+.BR hotline-daemon (1),
+.BR hotline-stop-transcription (1),
+.BR hotline-sendcmd (1),
+.BR hotline.toml (5)
+.SH AUTHOR
+Written by the HotLine contributors.
+.SH COPYRIGHT
+Copyright (C) 2025 HotLine contributors.
+License GPLv3+: GNU GPL version 3 or later.

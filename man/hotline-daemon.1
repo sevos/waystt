@@ -1,0 +1,171 @@
+.TH HOTLINE-DAEMON 1 "August 2025" "hotline 0.2.3" "User Commands"
+.SH NAME
+hotline-daemon \- run the HotLine background service for speech-to-text
+.SH SYNOPSIS
+.B hotline daemon
+.RI [ OPTIONS ]
+.SH DESCRIPTION
+The
+.B hotline daemon
+command starts the HotLine background service that handles continuous audio recording and real-time transcription via OpenAI's API.
+.PP
+The daemon:
+.IP \(bu 2
+Continuously records audio from the default microphone
+.IP \(bu 2
+Listens on a UNIX socket for client commands
+.IP \(bu 2
+Manages transcription sessions with OpenAI's real-time API
+.IP \(bu 2
+Provides audio feedback for state changes
+.IP \(bu 2
+Handles multiple transcription profiles
+.SH OPTIONS
+.TP
+.B \-\-envfile \fIPATH\fR
+Specify a custom path to the environment file containing configuration variables. If not specified, the daemon will look for configuration in the following order:
+.RS
+.IP 1. 4
+The specified envfile path
+.IP 2. 4
+~/.config/hotline/.env (default)
+.IP 3. 4
+System environment variables
+.RE
+.SH OPERATION
+When started, the daemon:
+.IP 1. 4
+Loads configuration from TOML file, environment variables, or defaults
+.IP 2. 4
+Validates the OpenAI API key and other required settings
+.IP 3. 4
+Initializes the audio recording system (PipeWire/CPAL)
+.IP 4. 4
+Creates a UNIX socket at $XDG_RUNTIME_DIR/hotline.sock
+.IP 5. 4
+Begins continuous audio recording
+.IP 6. 4
+Waits for client commands via the socket
+.PP
+The daemon continues running until it receives a shutdown signal (Ctrl+C or SIGTERM).
+.SH SOCKET COMMUNICATION
+The daemon listens on a UNIX socket for JSON-formatted commands:
+.TP
+.B StartTranscription
+Begin a new transcription session with specified parameters
+.TP
+.B StopTranscription
+End the current transcription session
+.PP
+Socket location (in order of preference):
+.IP 1. 4
+$XDG_RUNTIME_DIR/hotline.sock
+.IP 2. 4
+$XDG_CONFIG_DIR/hotline/hotline.sock
+.IP 3. 4
+~/.config/hotline/hotline.sock
+.SH AUDIO SYSTEM
+The daemon uses:
+.IP \(bu 2
+.B PipeWire
+for audio capture on Linux systems
+.IP \(bu 2
+.B CPAL
+(Cross-Platform Audio Library) as the audio backend
+.IP \(bu 2
+16kHz sample rate optimized for speech recognition
+.IP \(bu 2
+Mono channel configuration
+.IP \(bu 2
+Configurable buffer duration (default: 5 minutes)
+.SH TRANSCRIPTION MODELS
+Supported OpenAI transcription models:
+.TP
+.B whisper-1
+Standard Whisper model, good balance of speed and accuracy
+.TP
+.B gpt-4o-transcribe
+GPT-4o optimized for transcription, highest accuracy
+.TP
+.B gpt-4o-mini-transcribe
+Smaller GPT-4o variant, faster with good accuracy
+.SH SIGNALS
+.TP
+.B SIGTERM, SIGINT (Ctrl+C)
+Gracefully shutdown the daemon, cleaning up the socket and stopping audio recording
+.SH EXAMPLES
+.SS Basic usage:
+.nf
+# Start daemon in foreground
+hotline daemon
+
+# Start daemon in background
+hotline daemon &
+
+# Start with custom config
+hotline daemon --envfile ~/my-config/.env
+.fi
+.SS Systemd service (user):
+Create ~/.config/systemd/user/hotline.service:
+.nf
+[Unit]
+Description=HotLine Speech-to-Text Daemon
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/hotline daemon
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+.fi
+.PP
+Then enable and start:
+.nf
+systemctl --user enable hotline.service
+systemctl --user start hotline.service
+.fi
+.SH TROUBLESHOOTING
+.SS Daemon won't start:
+.IP \(bu 2
+Check if another instance is running: \fBpgrep -f "hotline daemon"\fR
+.IP \(bu 2
+Remove stale socket: \fBrm $XDG_RUNTIME_DIR/hotline.sock\fR
+.IP \(bu 2
+Verify OpenAI API key is set
+.SS No audio recording:
+.IP \(bu 2
+Check PipeWire status: \fBsystemctl --user status pipewire\fR
+.IP \(bu 2
+Verify microphone permissions
+.IP \(bu 2
+Test with: \fBpw-record --target 0 test.wav\fR
+.SS Socket errors:
+.IP \(bu 2
+Check socket exists: \fBls -la $XDG_RUNTIME_DIR/hotline.sock\fR
+.IP \(bu 2
+Verify permissions on socket file
+.IP \(bu 2
+Ensure XDG_RUNTIME_DIR is set
+.SH FILES
+.TP
+.I $XDG_RUNTIME_DIR/hotline.sock
+UNIX socket for client communication
+.TP
+.I ~/.config/hotline/hotline.toml
+Configuration file
+.TP
+.I ~/.config/hotline/.env
+Environment configuration
+.SH SEE ALSO
+.BR hotline (1),
+.BR hotline-start-transcription (1),
+.BR hotline-stop-transcription (1),
+.BR hotline.toml (5)
+.SH AUTHOR
+Written by the HotLine contributors.
+.SH COPYRIGHT
+Copyright (C) 2025 HotLine contributors.
+License GPLv3+: GNU GPL version 3 or later.

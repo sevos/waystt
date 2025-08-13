@@ -1,0 +1,70 @@
+# HotLine Configuration File
+# This file contains default configuration for the HotLine daemon.
+# Copy this file to $XDG_CONFIG_DIR/hotline/hotline.toml or ~/.config/hotline/hotline.toml
+# 
+# Configuration precedence (highest to lowest):
+# 1. Command-line arguments
+# 2. Environment variables
+# 3. This TOML configuration file
+# 4. Default values
+
+# OpenAI API configuration
+openai_api_key = "your-api-key-here"  # Can also be set via OPENAI_API_KEY env var
+# openai_base_url = "https://api.openai.com"  # Optional: custom API endpoint
+
+# Real-time transcription model
+# Options: "whisper-1", "gpt-4o-transcribe", "gpt-4o-mini-transcribe"
+realtime_model = "whisper-1"
+
+# Audio configuration
+audio_buffer_duration_seconds = 300  # 5 minutes
+audio_sample_rate = 16000  # Optimized for Whisper
+audio_channels = 1  # Mono
+
+# Whisper transcription settings
+whisper_model = "whisper-1"
+whisper_language = "auto"  # or specify like "en", "es", etc.
+whisper_timeout_seconds = 60
+whisper_max_retries = 3
+
+# Audio feedback settings
+enable_audio_feedback = true
+beep_volume = 0.1  # Range: 0.0 to 1.0
+
+# Logging
+rust_log = "info"  # Options: trace, debug, info, warn, error
+
+# Transcription profiles
+# Define named profiles for different transcription scenarios
+
+[profiles.default]
+model = "whisper-1"
+language = "en"
+
+[profiles.coding]
+model = "whisper-1"
+language = "en"
+prompt = "The user is a programmer, so expect technical terms."
+# Example command to type the transcribed text using xdotool
+# command = { SpawnForEachTranscription = { command = ["xdotool", "type", "--file", "-"] } }
+
+[profiles.spanish]
+model = "whisper-1"
+language = "es"
+prompt = "El usuario habla español."
+
+[profiles.coding-spanish]
+model = "gpt-4o-mini-transcribe"  # Using GPT-4o mini transcribe instead of whisper
+language = "es"
+prompt = "El usuario es un programador escribiendo código. Espera términos técnicos de programación, nombres de funciones, variables en inglés mezclados con español."
+# Semantic VAD configuration for better context understanding
+vad_config = { SemanticVad = { eagerness = "medium" } }
+# Example command to type the transcribed text using xdotool
+# command = { SpawnForEachTranscription = { command = ["xdotool", "type", "--file", "-"] } }
+
+[profiles.meeting]
+model = "whisper-1"
+language = "auto"
+prompt = "This is a business meeting with multiple speakers."
+# Example command to save transcriptions to a file
+# command = { SpawnForEachTranscription = { command = ["tee", "-a", "/tmp/meeting_transcript.txt"] } }

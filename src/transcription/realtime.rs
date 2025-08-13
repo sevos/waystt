@@ -46,7 +46,7 @@ impl RealtimeTranscriber {
     /// Returns a sender for audio data and a receiver for transcription results
     pub async fn start_session(
         &self,
-        _language: Option<String>,
+        language: Option<String>,
     ) -> Result<
         (
             mpsc::Sender<Vec<u8>>,                  // Send PCM16 audio data
@@ -55,7 +55,7 @@ impl RealtimeTranscriber {
         ),
         TranscriptionError,
     > {
-        let url = format!("wss://api.openai.com/v1/realtime?model={}", self.model);
+        let url = "wss://api.openai.com/v1/realtime?intent=transcription".to_string();
 
         // Parse the URL for tokio-tungstenite
         let url = url
@@ -105,24 +105,27 @@ impl RealtimeTranscriber {
         let (audio_tx, mut audio_rx) = mpsc::channel::<Vec<u8>>(100);
         let (transcript_tx, transcript_rx) = mpsc::channel::<Result<String, String>>(100);
 
-        // Configure session for transcription only (not conversation)
+        // Configure transcription session
+        // The API seems to require a "session" wrapper even for transcription_session.update
+        let mut transcription_config = json!({
+            "model": self.model.clone(),
+        });
+
+        if let Some(lang) = language {
+            transcription_config["language"] = json!(lang);
+        }
+
         let session_config = json!({
-            "type": "session.update",
+            "type": "transcription_session.update",
             "session": {
-                "modalities": ["text"],
-                "instructions": "You must ONLY respond with the word 'OK' to any input. Never say anything else. Just 'OK'. Nothing more, nothing less. Only 'OK'.",
                 "input_audio_format": "pcm16",
-                "input_audio_transcription": {
-                    "model": "whisper-1"
-                },
+                "input_audio_transcription": transcription_config,
                 "turn_detection": {
                     "type": "server_vad",
                     "threshold": 0.5,
                     "prefix_padding_ms": 300,
-                    "silence_duration_ms": 200  // Reduced for faster response
-                },
-                "temperature": 0.6,
-                "max_response_output_tokens": 2  // Just enough for "OK"
+                    "silence_duration_ms": 500
+                }
             }
         });
 
@@ -203,7 +206,14 @@ impl RealtimeTranscriber {
                                         }
                                     }
                                     "conversation.item.input_audio_transcription.delta" => {
-                                        // Partial transcriptions are ignored for now.
+                                        // For whisper-1, delta contains full transcript
+                                        // For gpt-4o models, it contains incremental transcripts
+                                        if let Some(delta) = event.delta {
+                                            if let Some(_text) = delta.as_str() {
+                                                // Could send partial transcriptions if needed
+                                                // For now, we wait for completed event
+                                            }
+                                        }
                                     }
                                     "conversation.item.input_audio_transcription.failed" => {
                                         let _ = transcript_tx
@@ -221,48 +231,18 @@ impl RealtimeTranscriber {
                                             let _ = transcript_tx.send(Err(error_msg)).await;
                                         }
                                     }
+                                    "transcription_session.created" => {
+                                        eprintln!("Transcription session established");
+                                    }
+                                    "transcription_session.updated" => {
+                                        // Transcription session configuration updated
+                                    }
                                     "session.created" => {
-                                        eprintln!("WebSocket session established");
+                                        // Some events might still use session.created
+                                        eprintln!("Session established");
                                     }
                                     "session.updated" => {
-                                        // Session configuration updated
-                                    }
-                                    // Log AI responses to verify system prompt is working
-                                    "response.text.delta" => {
-                                        eprintln!("AI response delta event");
-                                        if let Some(delta) = event.delta {
-                                            eprintln!("Delta content: {:?}", delta);
-                                            if let Some(text) =
-                                                delta.get("text").and_then(|t| t.as_str())
-                                            {
-                                                eprintln!("AI response (delta): {}", text);
-                                            } else if let Some(text) = delta.as_str() {
-                                                eprintln!("AI response (delta str): {}", text);
-                                            }
-                                        }
-                                    }
-                                    "response.text.done" => {
-                                        eprintln!("AI response done event");
-                                        if let Some(item) = event.item {
-                                            eprintln!("Item content: {:?}", item);
-                                            if let Some(text) =
-                                                item.get("text").and_then(|t| t.as_str())
-                                            {
-                                                eprintln!("AI response (complete): {}", text);
-                                            } else if let Some(content) = item.get("content") {
-                                                eprintln!("Content field: {:?}", content);
-                                            }
-                                        }
-                                    }
-                                    "response.audio_transcript.delta"
-                                    | "response.audio_transcript.done"
-                                    | "response.created"
-                                    | "response.done"
-                                    | "response.content_part.added"
-                                    | "response.content_part.done"
-                                    | "response.output_item.added"
-                                    | "response.output_item.done" => {
-                                        // Ignore other response events
+                                        // Some events might still use session.updated
                                     }
                                     _ => {
                                         // Ignore other events

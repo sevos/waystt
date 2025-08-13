@@ -1,0 +1,289 @@
+.TH HOTLINE.TOML 5 "August 2025" "hotline 0.2.3" "File Formats"
+.SH NAME
+hotline.toml \- configuration file for the HotLine speech-to-text tool
+.SH SYNOPSIS
+.I ~/.config/hotline/hotline.toml
+.br
+.I $XDG_CONFIG_DIR/hotline/hotline.toml
+.SH DESCRIPTION
+The
+.B hotline.toml
+file contains configuration settings for the HotLine speech-to-text daemon and client commands. It uses the TOML (Tom's Obvious, Minimal Language) format.
+.PP
+This file is optional. If not present, HotLine will use environment variables or default values.
+.SH FILE LOCATION
+HotLine looks for the configuration file in the following order:
+.IP 1. 4
+$XDG_CONFIG_DIR/hotline/hotline.toml (if XDG_CONFIG_DIR is set)
+.IP 2. 4
+~/.config/hotline/hotline.toml (default location)
+.SH FILE STRUCTURE
+The configuration file consists of:
+.IP \(bu 2
+Top-level configuration keys
+.IP \(bu 2
+[profiles.*] sections for named transcription profiles
+.SH TOP-LEVEL CONFIGURATION
+.SS OpenAI API Settings:
+.TP
+.B openai_api_key = \fI"string"\fR
+Your OpenAI API key (required for operation)
+.TP
+.B openai_base_url = \fI"string"\fR
+Custom API endpoint URL (optional, for proxies)
+.TP
+.B realtime_model = \fI"string"\fR
+Default transcription model. Options:
+.RS
+.IP \(bu 2
+"whisper-1" - Standard Whisper model (default)
+.IP \(bu 2
+"gpt-4o-transcribe" - GPT-4o optimized for transcription
+.IP \(bu 2
+"gpt-4o-mini-transcribe" - Smaller GPT-4o variant
+.RE
+.SS Audio Configuration:
+.TP
+.B audio_buffer_duration_seconds = \fIinteger\fR
+Maximum audio buffer duration in seconds (default: 300)
+.TP
+.B audio_sample_rate = \fIinteger\fR
+Audio sampling rate in Hz (default: 16000)
+.TP
+.B audio_channels = \fIinteger\fR
+Number of audio channels, 1 for mono, 2 for stereo (default: 1)
+.SS Whisper Settings:
+.TP
+.B whisper_model = \fI"string"\fR
+Legacy Whisper model setting (default: "whisper-1")
+.TP
+.B whisper_language = \fI"string"\fR
+Default language for transcription in ISO 639-1 format (default: "auto")
+.br
+Examples: "en", "es", "fr", "de", "ja", "zh"
+.TP
+.B whisper_timeout_seconds = \fIinteger\fR
+API request timeout in seconds (default: 60)
+.TP
+.B whisper_max_retries = \fIinteger\fR
+Maximum number of retry attempts for failed requests (default: 3)
+.SS Audio Feedback:
+.TP
+.B enable_audio_feedback = \fIboolean\fR
+Enable or disable beep sounds (default: true)
+.TP
+.B beep_volume = \fIfloat\fR
+Volume for audio feedback, range 0.0 to 1.0 (default: 0.1)
+.SS Logging:
+.TP
+.B rust_log = \fI"string"\fR
+Logging level. Options: "trace", "debug", "info", "warn", "error" (default: "info")
+.SH PROFILES
+Profiles are defined under [profiles.NAME] sections where NAME is the profile identifier.
+.SS Profile Fields:
+.TP
+.B model = \fI"string"\fR
+Transcription model for this profile
+.TP
+.B language = \fI"string"\fR
+Language code for transcription
+.TP
+.B prompt = \fI"string"\fR
+Context prompt to guide transcription
+.TP
+.B command = \fItable\fR
+Command to execute with transcribed text (see COMMAND EXECUTION)
+.TP
+.B vad_config = \fItable\fR
+Voice Activity Detection configuration (see VAD CONFIGURATION)
+.SH COMMAND EXECUTION
+Commands are specified as tables with the following format:
+.SS SpawnForEachTranscription:
+.nf
+command = { SpawnForEachTranscription = { command = ["program", "arg1", "arg2"] } }
+.fi
+.PP
+The transcribed text is sent to the command's standard input.
+.SS Examples:
+.nf
+# Copy to clipboard
+command = { SpawnForEachTranscription = { command = ["wl-copy"] } }
+
+# Type with ydotool
+command = { SpawnForEachTranscription = { command = ["ydotool", "type", "--file", "-"] } }
+
+# Append to file
+command = { SpawnForEachTranscription = { command = ["tee", "-a", "/tmp/log.txt"] } }
+.fi
+.SH VAD CONFIGURATION
+Voice Activity Detection can be configured in two modes:
+.SS Server VAD (threshold-based):
+.nf
+vad_config = { ServerVad = {
+    threshold = 0.5,           # 0.0 to 1.0
+    prefix_padding_ms = 300,   # milliseconds before speech
+    silence_duration_ms = 500  # milliseconds of silence to stop
+} }
+.fi
+.SS Semantic VAD (AI-powered):
+.nf
+vad_config = { SemanticVad = {
+    eagerness = "medium"  # "low", "medium", or "high"
+} }
+.fi
+.SH COMPLETE EXAMPLE
+.nf
+# ~/.config/hotline/hotline.toml
+
+# OpenAI API configuration
+openai_api_key = "sk-..."
+# openai_base_url = "https://api.openai.com"  # optional
+
+# Default transcription model
+realtime_model = "whisper-1"
+
+# Audio configuration
+audio_buffer_duration_seconds = 300
+audio_sample_rate = 16000
+audio_channels = 1
+
+# Whisper settings
+whisper_language = "auto"
+whisper_timeout_seconds = 60
+whisper_max_retries = 3
+
+# Audio feedback
+enable_audio_feedback = true
+beep_volume = 0.1
+
+# Logging
+rust_log = "info"
+
+# Profile for general use
+[profiles.default]
+model = "whisper-1"
+language = "en"
+
+# Profile for coding with clipboard
+[profiles.coding]
+model = "gpt-4o-mini-transcribe"
+language = "en"
+prompt = "The user is a programmer, expect technical terms."
+command = { SpawnForEachTranscription = { command = ["wl-copy"] } }
+
+# Profile for Spanish coding with semantic VAD
+[profiles.coding-spanish]
+model = "gpt-4o-mini-transcribe"
+language = "es"
+prompt = "El usuario es un programador escribiendo código."
+vad_config = { SemanticVad = { eagerness = "medium" } }
+
+# Profile for meetings with file output
+[profiles.meeting]
+model = "whisper-1"
+language = "auto"
+prompt = "Business meeting with multiple speakers."
+command = { SpawnForEachTranscription = { 
+    command = ["tee", "-a", "/tmp/meeting_transcript.txt"] 
+} }
+
+# Profile for medical dictation
+[profiles.medical]
+model = "gpt-4o-transcribe"
+language = "en"
+prompt = "Medical dictation with technical terminology."
+vad_config = { ServerVad = {
+    threshold = 0.4,
+    prefix_padding_ms = 500,
+    silence_duration_ms = 1000
+} }
+.fi
+.SH VALIDATION
+Configuration is validated when:
+.IP \(bu 2
+Running \fBhotline config\fR command
+.IP \(bu 2
+Starting the daemon with \fBhotline daemon\fR
+.IP \(bu 2
+Using a profile with \fBhotline start-transcription\fR
+.PP
+Validation checks:
+.IP \(bu 2
+TOML syntax correctness
+.IP \(bu 2
+Required fields presence
+.IP \(bu 2
+Value ranges (e.g., volume 0.0-1.0)
+.IP \(bu 2
+Model name validity
+.SH PRECEDENCE
+Configuration values are resolved in order:
+.IP 1. 4
+Command-line arguments (highest priority)
+.IP 2. 4
+Environment variables
+.IP 3. 4
+TOML file values
+.IP 4. 4
+Built-in defaults (lowest priority)
+.SH ENVIRONMENT VARIABLE MAPPING
+TOML keys map to environment variables:
+.IP \(bu 2
+openai_api_key → OPENAI_API_KEY
+.IP \(bu 2
+realtime_model → REALTIME_MODEL
+.IP \(bu 2
+audio_buffer_duration_seconds → AUDIO_BUFFER_DURATION_SECONDS
+.IP \(bu 2
+audio_sample_rate → AUDIO_SAMPLE_RATE
+.IP \(bu 2
+audio_channels → AUDIO_CHANNELS
+.IP \(bu 2
+whisper_language → WHISPER_LANGUAGE
+.IP \(bu 2
+enable_audio_feedback → ENABLE_AUDIO_FEEDBACK
+.IP \(bu 2
+beep_volume → BEEP_VOLUME
+.IP \(bu 2
+rust_log → RUST_LOG
+.SH TIPS
+.SS Profile Organization:
+.IP \(bu 2
+Create profiles for different contexts (coding, meetings, notes)
+.IP \(bu 2
+Use descriptive names for easy identification
+.IP \(bu 2
+Set appropriate prompts for better accuracy
+.SS Performance:
+.IP \(bu 2
+Use whisper-1 for balance of speed and accuracy
+.IP \(bu 2
+Use gpt-4o models for highest accuracy
+.IP \(bu 2
+Adjust VAD settings based on environment noise
+.SS Security:
+.IP \(bu 2
+Never commit hotline.toml with API keys to version control
+.IP \(bu 2
+Use environment variables for sensitive data in shared systems
+.IP \(bu 2
+Set appropriate file permissions (600 recommended)
+.SH FILES
+.TP
+.I ~/.config/hotline/hotline.toml
+User configuration file
+.TP
+.I hotline.toml.example
+Example configuration in source repository
+.SH SEE ALSO
+.BR hotline (1),
+.BR hotline-config (1),
+.BR hotline-start-transcription (1),
+.BR toml (5)
+.PP
+TOML specification: https://toml.io
+.SH AUTHOR
+Written by the HotLine contributors.
+.SH COPYRIGHT
+Copyright (C) 2025 HotLine contributors.
+License GPLv3+: GNU GPL version 3 or later.

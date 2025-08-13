@@ -1,0 +1,264 @@
+.TH HOTLINE-CONFIG 1 "August 2025" "hotline 0.2.3" "User Commands"
+.SH NAME
+hotline-config \- validate and display HotLine configuration
+.SH SYNOPSIS
+.B hotline config
+.SH DESCRIPTION
+The
+.B hotline config
+command reads, validates, and displays the current HotLine configuration. It shows the effective configuration after merging all sources according to precedence rules.
+.PP
+This command is useful for:
+.IP \(bu 2
+Verifying configuration is valid
+.IP \(bu 2
+Debugging configuration issues
+.IP \(bu 2
+Understanding which settings are active
+.IP \(bu 2
+Checking if API keys are set
+.IP \(bu 2
+Viewing available profiles
+.SH CONFIGURATION SOURCES
+Configuration is loaded from multiple sources in order of precedence (highest to lowest):
+.IP 1. 4
+Command-line arguments
+.IP 2. 4
+Environment variables
+.IP 3. 4
+TOML configuration file (~/.config/hotline/hotline.toml)
+.IP 4. 4
+Default values
+.SH OUTPUT FORMAT
+The command displays configuration in a human-readable format:
+.SS Example output:
+.nf
+HotLine Configuration
+=====================
+
+OpenAI Settings:
+  API Key: ***SET***
+  Base URL: default
+  Realtime Model: whisper-1
+
+Audio Settings:
+  Buffer Duration: 300 seconds
+  Sample Rate: 16000 Hz
+  Channels: 1
+  Audio Feedback: true
+  Beep Volume: 0.1
+
+Whisper Settings:
+  Model: whisper-1
+  Language: auto
+  Timeout: 60 seconds
+  Max Retries: 3
+
+Other Settings:
+  Log Level: info
+
+Configuration loaded from:
+  - TOML file: /home/user/.config/hotline/hotline.toml
+  - Environment variables
+  - Default values
+.fi
+.SH VALIDATION
+The command performs the following validation:
+.TP
+.B API Key
+Verifies OPENAI_API_KEY is set (required)
+.TP
+.B Audio Settings
+.RS
+.IP \(bu 2
+Buffer duration > 0
+.IP \(bu 2
+Sample rate > 0
+.IP \(bu 2
+Channels > 0
+.IP \(bu 2
+Beep volume between 0.0 and 1.0
+.RE
+.TP
+.B Model Names
+Validates transcription model is recognized
+.TP
+.B TOML Syntax
+Checks configuration file for syntax errors
+.SH CONFIGURATION FIELDS
+.SS Required:
+.TP
+.B openai_api_key
+Your OpenAI API key for transcription services
+.SS Optional:
+.TP
+.B openai_base_url
+Custom API endpoint (for proxies or alternatives)
+.TP
+.B realtime_model
+Transcription model: whisper-1, gpt-4o-transcribe, gpt-4o-mini-transcribe
+.TP
+.B audio_buffer_duration_seconds
+Maximum recording buffer in seconds (default: 300)
+.TP
+.B audio_sample_rate
+Audio sampling rate in Hz (default: 16000)
+.TP
+.B audio_channels
+Number of audio channels (default: 1 for mono)
+.TP
+.B whisper_model
+Legacy Whisper model setting
+.TP
+.B whisper_language
+Default language for transcription (default: auto)
+.TP
+.B whisper_timeout_seconds
+API timeout in seconds (default: 60)
+.TP
+.B whisper_max_retries
+Maximum retry attempts (default: 3)
+.TP
+.B enable_audio_feedback
+Enable beep sounds (default: true)
+.TP
+.B beep_volume
+Volume for audio feedback 0.0-1.0 (default: 0.1)
+.TP
+.B rust_log
+Logging level: trace, debug, info, warn, error (default: info)
+.TP
+.B profiles
+Named configuration profiles for different use cases
+.SH PROFILES
+The config command also displays available profiles:
+.nf
+Available Profiles:
+  - default: Basic English transcription
+  - coding: Technical transcription with code terms
+  - meeting: Multi-speaker meeting transcription
+  - coding-spanish: Spanish coding with semantic VAD
+.fi
+.SH EXAMPLES
+.SS Check configuration:
+.nf
+hotline config
+.fi
+.SS Verify after editing TOML:
+.nf
+# Edit configuration
+vim ~/.config/hotline/hotline.toml
+
+# Validate changes
+hotline config
+.fi
+.SS Debug configuration issues:
+.nf
+# Set environment variable
+export OPENAI_API_KEY="sk-..."
+
+# Check if it's detected
+hotline config | grep "API Key"
+.fi
+.SS Use in scripts:
+.nf
+#!/bin/bash
+# Verify configuration before starting daemon
+
+if hotline config > /dev/null 2>&1; then
+    echo "Configuration valid, starting daemon..."
+    hotline daemon &
+else
+    echo "Configuration error! Please run: hotline config"
+    exit 1
+fi
+.fi
+.SH EXIT STATUS
+.TP
+.B 0
+Configuration is valid
+.TP
+.B 1
+Configuration validation failed
+.SH ERROR MESSAGES
+.TP
+.B "OPENAI_API_KEY is required"
+No API key found in any configuration source
+.TP
+.B "AUDIO_BUFFER_DURATION_SECONDS must be greater than 0"
+Invalid buffer duration setting
+.TP
+.B "BEEP_VOLUME must be between 0.0 and 1.0"
+Volume setting out of range
+.TP
+.B "Failed to load TOML config"
+Syntax error in hotline.toml file
+.SH TROUBLESHOOTING
+.SS API key not detected:
+.IP 1. 4
+Check environment: \fBecho $OPENAI_API_KEY\fR
+.IP 2. 4
+Check TOML file: \fBgrep openai_api_key ~/.config/hotline/hotline.toml\fR
+.IP 3. 4
+Check .env file: \fBgrep OPENAI_API_KEY ~/.config/hotline/.env\fR
+.SS TOML syntax errors:
+.IP \(bu 2
+Validate with external tool: \fBtoml-test < ~/.config/hotline/hotline.toml\fR
+.IP \(bu 2
+Check for missing quotes around strings
+.IP \(bu 2
+Verify table headers like [profiles.name]
+.IP \(bu 2
+Ensure consistent indentation
+.SS Wrong settings active:
+.IP \(bu 2
+Remember precedence: CLI > env > TOML > defaults
+.IP \(bu 2
+Unset environment variables to use TOML values
+.IP \(bu 2
+Check for typos in configuration keys
+.SH FILES
+.TP
+.I ~/.config/hotline/hotline.toml
+Primary configuration file in TOML format
+.TP
+.I ~/.config/hotline/.env
+Alternative environment variable configuration
+.TP
+.I $XDG_CONFIG_DIR/hotline/hotline.toml
+Alternative config location if XDG_CONFIG_DIR is set
+.SH ENVIRONMENT
+All configuration fields can be set via environment variables:
+.IP \(bu 2
+OPENAI_API_KEY
+.IP \(bu 2
+OPENAI_BASE_URL
+.IP \(bu 2
+REALTIME_MODEL
+.IP \(bu 2
+AUDIO_BUFFER_DURATION_SECONDS
+.IP \(bu 2
+AUDIO_SAMPLE_RATE
+.IP \(bu 2
+AUDIO_CHANNELS
+.IP \(bu 2
+WHISPER_LANGUAGE
+.IP \(bu 2
+WHISPER_TIMEOUT_SECONDS
+.IP \(bu 2
+WHISPER_MAX_RETRIES
+.IP \(bu 2
+ENABLE_AUDIO_FEEDBACK
+.IP \(bu 2
+BEEP_VOLUME
+.IP \(bu 2
+RUST_LOG
+.SH SEE ALSO
+.BR hotline (1),
+.BR hotline.toml (5),
+.BR hotline-daemon (1)
+.SH AUTHOR
+Written by the HotLine contributors.
+.SH COPYRIGHT
+Copyright (C) 2025 HotLine contributors.
+License GPLv3+: GNU GPL version 3 or later.

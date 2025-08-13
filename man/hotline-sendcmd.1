@@ -1,0 +1,246 @@
+.TH HOTLINE-SENDCMD 1 "August 2025" "hotline 0.2.3" "User Commands"
+.SH NAME
+hotline-sendcmd \- send raw JSON commands to the HotLine daemon
+.SH SYNOPSIS
+.B hotline sendcmd
+<
+.I COMMAND.json
+.PP
+.B echo
+.I 'JSON_COMMAND'
+|
+.B hotline sendcmd
+.SH DESCRIPTION
+The
+.B hotline sendcmd
+command provides low-level access to the HotLine daemon's command interface. It reads a JSON-formatted command from standard input and sends it to the daemon via UNIX socket.
+.PP
+This is an advanced command primarily intended for:
+.IP \(bu 2
+Scripting and automation
+.IP \(bu 2
+Testing and debugging
+.IP \(bu 2
+Custom integrations
+.IP \(bu 2
+Accessing features not exposed through user-friendly commands
+.PP
+Most users should use the higher-level commands like
+.BR hotline-start-transcription (1)
+and
+.BR hotline-stop-transcription (1)
+instead.
+.SH JSON COMMAND FORMAT
+Commands must be valid JSON objects with one of the following structures:
+.SS StartTranscription:
+.nf
+{
+  "StartTranscription": {
+    "model": "whisper-1" | "gpt-4o-transcribe" | "gpt-4o-mini-transcribe",
+    "language": "ISO-639-1 code",
+    "prompt": "context string",
+    "vad_config": { /* VAD configuration */ },
+    "command": { /* command execution */ }
+  }
+}
+.fi
+.SS StopTranscription:
+.nf
+{
+  "StopTranscription": null
+}
+.fi
+.SH COMMAND FIELDS
+.SS StartTranscription fields (all optional):
+.TP
+.B model
+Transcription model to use
+.RS
+.IP \(bu 2
+"whisper-1" - Standard Whisper model
+.IP \(bu 2
+"gpt-4o-transcribe" - GPT-4o optimized for transcription
+.IP \(bu 2
+"gpt-4o-mini-transcribe" - Smaller GPT-4o variant
+.RE
+.TP
+.B language
+ISO 639-1 language code (e.g., "en", "es", "fr", "de", "ja")
+.TP
+.B prompt
+Context prompt to improve transcription accuracy
+.TP
+.B vad_config
+Voice Activity Detection configuration (see VAD CONFIGURATION)
+.TP
+.B command
+Command to execute with transcribed text (see COMMAND EXECUTION)
+.SH VAD CONFIGURATION
+.SS Server VAD (threshold-based):
+.nf
+"vad_config": {
+  "ServerVad": {
+    "threshold": 0.5,           // 0.0 to 1.0
+    "prefix_padding_ms": 300,   // milliseconds
+    "silence_duration_ms": 500  // milliseconds
+  }
+}
+.fi
+.SS Semantic VAD (AI-powered):
+.nf
+"vad_config": {
+  "SemanticVad": {
+    "eagerness": "low" | "medium" | "high"
+  }
+}
+.fi
+.SH COMMAND EXECUTION
+.SS Spawn command for each transcription:
+.nf
+"command": {
+  "SpawnForEachTranscription": {
+    "command": ["program", "arg1", "arg2"]
+  }
+}
+.fi
+.PP
+The transcribed text is sent to the command's standard input.
+.SH EXAMPLES
+.SS Start basic transcription:
+.nf
+echo '{"StartTranscription": {"model": "whisper-1", "language": "en"}}' | hotline sendcmd
+.fi
+.SS Start with all options:
+.nf
+cat <<EOF | hotline sendcmd
+{
+  "StartTranscription": {
+    "model": "gpt-4o-transcribe",
+    "language": "en",
+    "prompt": "Technical documentation with code examples",
+    "vad_config": {
+      "SemanticVad": {
+        "eagerness": "medium"
+      }
+    },
+    "command": {
+      "SpawnForEachTranscription": {
+        "command": ["tee", "-a", "/tmp/transcript.txt"]
+      }
+    }
+  }
+}
+EOF
+.fi
+.SS Stop transcription:
+.nf
+echo '{"StopTranscription": null}' | hotline sendcmd
+.fi
+.SS From a file:
+.nf
+hotline sendcmd < start_meeting.json
+.fi
+.SS In a script:
+.nf
+#!/bin/bash
+# Custom transcription with dynamic settings
+
+MODEL="gpt-4o-mini-transcribe"
+LANG="${1:-en}"
+OUTPUT="${2:-/tmp/transcript.txt}"
+
+cat <<EOF | hotline sendcmd
+{
+  "StartTranscription": {
+    "model": "$MODEL",
+    "language": "$LANG",
+    "command": {
+      "SpawnForEachTranscription": {
+        "command": ["tee", "-a", "$OUTPUT"]
+      }
+    }
+  }
+}
+EOF
+.fi
+.SH RESPONSE FORMAT
+The daemon responds with JSON:
+.SS Success:
+.nf
+{"Success": {"message": "Starting transcription"}}
+.fi
+.SS Error:
+.nf
+{"Error": {"message": "Already streaming audio"}}
+.fi
+.SH EXIT STATUS
+.TP
+.B 0
+Command successfully sent and executed
+.TP
+.B 1
+Command failed (invalid JSON, daemon error, etc.)
+.SH ERROR MESSAGES
+.TP
+.B "Invalid JSON command"
+The input is not valid JSON
+.TP
+.B "Daemon not running"
+Cannot connect to daemon socket
+.TP
+.B "Already streaming audio"
+Tried to start transcription while one is active
+.TP
+.B "Not currently streaming"
+Tried to stop transcription when none is active
+.SH VALIDATION
+The command performs basic validation:
+.IP \(bu 2
+JSON syntax must be valid
+.IP \(bu 2
+Command structure must match expected format
+.IP \(bu 2
+Model names must be recognized
+.IP \(bu 2
+Language codes should be valid ISO 639-1
+.PP
+However, semantic validation (e.g., prompt appropriateness) is not performed.
+.SH DEBUGGING
+To debug commands:
+.SS Test JSON validity:
+.nf
+echo '{"StartTranscription": {}}' | jq .
+.fi
+.SS View daemon response:
+.nf
+echo '{"StartTranscription": {}}' | hotline sendcmd 2>&1
+.fi
+.SS Check daemon logs:
+Run daemon in foreground to see detailed logs:
+.nf
+hotline daemon
+.fi
+.SH SECURITY
+.IP \(bu 2
+Commands are sent over local UNIX socket (not network)
+.IP \(bu 2
+Socket has user-only permissions by default
+.IP \(bu 2
+No authentication beyond filesystem permissions
+.IP \(bu 2
+Commands can execute arbitrary programs via "command" field
+.SH FILES
+.TP
+.I $XDG_RUNTIME_DIR/hotline.sock
+UNIX socket for daemon communication
+.SH SEE ALSO
+.BR hotline (1),
+.BR hotline-daemon (1),
+.BR hotline-start-transcription (1),
+.BR hotline-stop-transcription (1),
+.BR jq (1)
+.SH AUTHOR
+Written by the HotLine contributors.
+.SH COPYRIGHT
+Copyright (C) 2025 HotLine contributors.
+License GPLv3+: GNU GPL version 3 or later.

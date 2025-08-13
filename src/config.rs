@@ -3,10 +3,22 @@
 #![allow(clippy::cast_sign_loss)]
 
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::Path;
 
+/// Profile configuration for transcription sessions
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TranscriptionProfile {
+    pub model: Option<String>,
+    pub language: Option<String>,
+    pub prompt: Option<String>,
+    pub command: Option<crate::socket::CommandExecution>,
+    pub vad_config: Option<crate::socket::VadConfig>,
+}
+
 /// Configuration for HotLine loaded from environment variables
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub openai_api_key: Option<String>,
     pub openai_base_url: Option<String>,
@@ -21,6 +33,8 @@ pub struct Config {
     pub rust_log: String,
     pub enable_audio_feedback: bool,
     pub beep_volume: f32,
+    #[serde(default)]
+    pub profiles: HashMap<String, TranscriptionProfile>,
 }
 
 impl Default for Config {
@@ -35,10 +49,11 @@ impl Default for Config {
             whisper_language: "auto".to_string(),
             whisper_timeout_seconds: 60,
             whisper_max_retries: 3,
-            realtime_model: "gpt-4o-mini-realtime-preview".to_string(),
+            realtime_model: "whisper-1".to_string(),
             rust_log: "info".to_string(),
             enable_audio_feedback: true,
             beep_volume: 0.1,
+            profiles: HashMap::new(),
         }
     }
 }
@@ -123,6 +138,144 @@ impl Config {
     pub fn load_env_file<P: AsRef<Path>>(path: P) -> Result<Self> {
         dotenvy::from_path(path)?;
         Ok(Self::from_env())
+    }
+
+    /// Load configuration from TOML file
+    pub fn from_toml<P: AsRef<Path>>(path: P) -> Result<Self> {
+        let contents = std::fs::read_to_string(path)?;
+        let mut config: Config = toml::from_str(&contents)?;
+
+        // Merge with environment variables (env vars take precedence)
+        config.merge_with_env();
+        Ok(config)
+    }
+
+    /// Get the default TOML config path
+    pub fn get_toml_config_path() -> std::path::PathBuf {
+        if let Ok(config_dir) = std::env::var("XDG_CONFIG_DIR") {
+            std::path::PathBuf::from(config_dir)
+                .join("hotline")
+                .join("hotline.toml")
+        } else {
+            dirs::config_dir()
+                .unwrap_or_else(|| {
+                    std::env::var("HOME")
+                        .map_or_else(|_| std::path::PathBuf::from("."), std::path::PathBuf::from)
+                })
+                .join("hotline")
+                .join("hotline.toml")
+        }
+    }
+
+    /// Load configuration with proper precedence:
+    /// 1. Command-line arguments (handled by caller)
+    /// 2. Environment variables
+    /// 3. TOML configuration file
+    /// 4. Default values
+    pub fn load_with_precedence() -> Result<Self> {
+        let toml_path = Self::get_toml_config_path();
+
+        // Start with defaults
+        let mut config = if toml_path.exists() {
+            // Load from TOML if it exists
+            match Self::from_toml(&toml_path) {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!(
+                        "Warning: Failed to load TOML config from {}: {}",
+                        toml_path.display(),
+                        e
+                    );
+                    Self::default()
+                }
+            }
+        } else {
+            Self::default()
+        };
+
+        // Merge with environment variables (they take precedence)
+        config.merge_with_env();
+
+        Ok(config)
+    }
+
+    /// Merge current config with environment variables (env vars take precedence)
+    fn merge_with_env(&mut self) {
+        // Load OpenAI API key
+        if let Ok(val) = std::env::var("OPENAI_API_KEY") {
+            self.openai_api_key = Some(val);
+        }
+
+        // Load OpenAI base URL
+        if let Ok(val) = std::env::var("OPENAI_BASE_URL") {
+            self.openai_base_url = Some(val);
+        }
+
+        // Load audio configuration
+        if let Ok(duration) = std::env::var("AUDIO_BUFFER_DURATION_SECONDS") {
+            if let Ok(parsed) = duration.parse::<usize>() {
+                self.audio_buffer_duration_seconds = parsed;
+            }
+        }
+
+        if let Ok(sample_rate) = std::env::var("AUDIO_SAMPLE_RATE") {
+            if let Ok(parsed) = sample_rate.parse::<u32>() {
+                self.audio_sample_rate = parsed;
+            }
+        }
+
+        if let Ok(channels) = std::env::var("AUDIO_CHANNELS") {
+            if let Ok(parsed) = channels.parse::<u16>() {
+                self.audio_channels = parsed;
+            }
+        }
+
+        // Load transcription configuration
+        if let Ok(model) = std::env::var("WHISPER_MODEL") {
+            self.whisper_model = model;
+        }
+
+        if let Ok(language) = std::env::var("WHISPER_LANGUAGE") {
+            self.whisper_language = language;
+        }
+
+        if let Ok(timeout) = std::env::var("WHISPER_TIMEOUT_SECONDS") {
+            if let Ok(parsed) = timeout.parse::<u64>() {
+                self.whisper_timeout_seconds = parsed;
+            }
+        }
+
+        if let Ok(retries) = std::env::var("WHISPER_MAX_RETRIES") {
+            if let Ok(parsed) = retries.parse::<u32>() {
+                self.whisper_max_retries = parsed;
+            }
+        }
+
+        // Load Realtime API model
+        if let Ok(model) = std::env::var("REALTIME_MODEL") {
+            self.realtime_model = model;
+        }
+
+        // Load logging configuration
+        if let Ok(log_level) = std::env::var("RUST_LOG") {
+            self.rust_log = log_level;
+        }
+
+        // Load audio feedback configuration
+        if let Ok(enabled) = std::env::var("ENABLE_AUDIO_FEEDBACK") {
+            self.enable_audio_feedback = enabled.to_lowercase() == "true";
+        }
+
+        if let Ok(volume) = std::env::var("BEEP_VOLUME") {
+            if let Ok(parsed) = volume.parse::<f32>() {
+                self.beep_volume = parsed.clamp(0.0, 1.0);
+            }
+        }
+    }
+
+    /// Get a transcription profile by name
+    pub fn get_profile(&self, name: &str) -> Option<&TranscriptionProfile> {
+        self.profiles.get(name)
     }
 
     /// Validate configuration

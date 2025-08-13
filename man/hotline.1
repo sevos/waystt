@@ -1,0 +1,159 @@
+.TH HOTLINE 1 "August 2025" "hotline 0.2.3" "User Commands"
+.SH NAME
+hotline \- minimalist speech-to-text tool with OpenAI real-time transcription
+.SH SYNOPSIS
+.B hotline
+.I COMMAND
+.RI [ OPTIONS ]
+.SH DESCRIPTION
+.B hotline
+is an open source, minimalist speech-to-text (STT) tool that channels the charm of classic telephony into a modern user experience powered by OpenAI's real-time transcription API.
+.PP
+The tool uses a client-server architecture where a daemon runs in the background handling audio recording and transcription, while client commands communicate with it via UNIX socket.
+.SH COMMANDS
+.TP
+.B daemon
+Run the HotLine daemon (background service)
+.TP
+.B start-transcription \fIPROFILE\fR
+Start transcription using the specified profile
+.TP
+.B stop-transcription
+Stop the current transcription session
+.TP
+.B sendcmd
+Send a raw JSON command to the daemon (reads from stdin)
+.TP
+.B config
+Validate and display the current configuration
+.SH OPTIONS
+.SS daemon command options:
+.TP
+.B \-\-envfile \fIPATH\fR
+Path to environment file (default: ~/.config/hotline/.env)
+.SH CONFIGURATION
+HotLine uses a configuration hierarchy with the following precedence (highest to lowest):
+.IP 1. 4
+Command-line arguments
+.IP 2. 4
+Environment variables
+.IP 3. 4
+TOML configuration file
+.IP 4. 4
+Default values
+.PP
+The primary configuration file is located at:
+.IP
+.I ~/.config/hotline/hotline.toml
+.PP
+Alternative environment file location:
+.IP
+.I ~/.config/hotline/.env
+.SH ENVIRONMENT
+.TP
+.B OPENAI_API_KEY
+Required. Your OpenAI API key for transcription services.
+.TP
+.B REALTIME_MODEL
+The transcription model to use. Options: whisper-1, gpt-4o-transcribe, gpt-4o-mini-transcribe (default: whisper-1)
+.TP
+.B WHISPER_LANGUAGE
+Language code for transcription in ISO 639-1 format (default: auto)
+.TP
+.B ENABLE_AUDIO_FEEDBACK
+Enable or disable audio feedback beeps. Values: true, false (default: true)
+.TP
+.B BEEP_VOLUME
+Volume for audio feedback, range 0.0 to 1.0 (default: 0.1)
+.TP
+.B XDG_RUNTIME_DIR
+Directory for runtime files including the UNIX socket
+.TP
+.B XDG_CONFIG_DIR
+Directory for configuration files
+.SH FILES
+.TP
+.I ~/.config/hotline/hotline.toml
+Main configuration file in TOML format
+.TP
+.I ~/.config/hotline/.env
+Alternative environment variable configuration
+.TP
+.I $XDG_RUNTIME_DIR/hotline.sock
+UNIX socket for client-daemon communication
+.TP
+.I ~/.config/hotline/hotline.sock
+Fallback socket location if XDG_RUNTIME_DIR is not set
+.SH EXAMPLES
+.SS Starting the daemon:
+.nf
+# Run in foreground
+hotline daemon
+
+# Run in background
+hotline daemon &
+
+# Use custom environment file
+hotline daemon --envfile /path/to/.env
+.fi
+.SS Using transcription:
+.nf
+# Start with default profile
+hotline start-transcription default
+
+# Start with coding profile
+hotline start-transcription coding
+
+# Stop transcription
+hotline stop-transcription
+.fi
+.SS Advanced usage with JSON commands:
+.nf
+# Start with custom settings
+echo '{"StartTranscription": {"model": "gpt-4o-transcribe", "language": "en"}}' | hotline sendcmd
+
+# Stop transcription
+echo '{"StopTranscription": null}' | hotline sendcmd
+.fi
+.SS Checking configuration:
+.nf
+hotline config
+.fi
+.SH AUDIO FEEDBACK
+HotLine provides nostalgic telephone-inspired audio feedback:
+.IP \(bu 2
+.B Off-hook tone:
+Daemon ready
+.IP \(bu 2
+.B Beep:
+Recording started
+.IP \(bu 2
+.B Beep-beep-beep:
+Recording stopped
+.IP \(bu 2
+.B Three-tone SIT:
+Error occurred
+.SH EXIT STATUS
+.TP
+.B 0
+Successful operation
+.TP
+.B 1
+General error or failed operation
+.SH BUGS
+Report bugs at: https://github.com/sevos/hotline/issues
+.SH SEE ALSO
+.BR hotline-daemon (1),
+.BR hotline-start-transcription (1),
+.BR hotline-stop-transcription (1),
+.BR hotline-sendcmd (1),
+.BR hotline-config (1),
+.BR hotline.toml (5)
+.SH AUTHOR
+Written by the HotLine contributors.
+.SH COPYRIGHT
+Copyright (C) 2025 HotLine contributors.
+License GPLv3+: GNU GPL version 3 or later.
+.PP
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.

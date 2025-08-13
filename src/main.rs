@@ -306,9 +306,11 @@ fn handle_command(
 
                                             // Execute command if specified
                                             match &command_exec {
-                                                Some(cmd_exec) if cmd_exec.is_spawn_for_each() => {
+                                                Some(socket::CommandExecution::SpawnForEach {
+                                                    command,
+                                                }) => {
                                                     if let Err(e) = command::execute_with_input(
-                                                        &cmd_exec.command,
+                                                        command,
                                                         &transcript,
                                                     )
                                                     .await
@@ -321,10 +323,6 @@ fn handle_command(
                                                 }
                                                 None => {
                                                     // Just print to stdout if no command specified
-                                                    println!("{}", transcript);
-                                                }
-                                                Some(_) => {
-                                                    // Unknown command type, just print to stdout
                                                     println!("{}", transcript);
                                                 }
                                             }

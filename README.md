@@ -201,10 +201,15 @@ echo '{"StopTranscription": null}' | hotline sendcmd
 
 ### Command Execution
 
-You can configure commands to be executed with each transcription. This is useful for:
-- Copying text to clipboard: `["wl-copy"]`
-- Typing text directly: `["ydotool", "type", "--file", "-"]`
-- Saving to a file: `["tee", "-a", "/tmp/transcript.txt"]`
+Commands are configured using a tagged format that supports extensibility for future command types.
+
+Currently supported:
+- **spawn_for_each**: Spawns command for each transcription, piping text to stdin
+  - Copying text to clipboard: `["wl-copy"]`
+  - Typing text directly: `["ydotool", "type", "--file", "-"]`
+  - Saving to a file: `["tee", "-a", "/tmp/transcript.txt"]`
+
+The tagged format allows future command types with different fields (e.g., `spawn_once`, `write_to_file`, `http_post`, etc.)
 
 Configure commands in your profile or pass them in the JSON command.
 

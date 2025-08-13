@@ -47,8 +47,9 @@ language = "en"
 prompt = "The user is a programmer, so expect technical terms."
 
 # Example command to copy transcribed text to clipboard
+# Commands use a tagged format for extensibility - each type can have different fields
 # [profiles.coding.command]
-# type = "spawn_for_each"
+# type = "spawn_for_each"  # Currently the only supported type
 # command = ["wl-copy"]
 
 [profiles.spanish]

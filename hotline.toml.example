@@ -45,8 +45,11 @@ language = "en"
 model = "whisper-1"
 language = "en"
 prompt = "The user is a programmer, so expect technical terms."
-# Example command to type the transcribed text using xdotool
-# command = { SpawnForEachTranscription = { command = ["xdotool", "type", "--file", "-"] } }
+
+# Example command to copy transcribed text to clipboard
+# [profiles.coding.command]
+# type = "spawn_for_each"
+# command = ["wl-copy"]
 
 [profiles.spanish]
 model = "whisper-1"
@@ -60,11 +63,15 @@ prompt = "El usuario es un programador escribiendo código. Espera términos té
 # Semantic VAD configuration for better context understanding
 vad_config = { SemanticVad = { eagerness = "medium" } }
 # Example command to type the transcribed text using xdotool
-# command = { SpawnForEachTranscription = { command = ["xdotool", "type", "--file", "-"] } }
+# [profiles.coding-spanish.command]
+# type = "spawn_for_each"
+# command = ["xdotool", "type", "--file", "-"]
 
 [profiles.meeting]
 model = "whisper-1"
 language = "auto"
 prompt = "This is a business meeting with multiple speakers."
 # Example command to save transcriptions to a file
-# command = { SpawnForEachTranscription = { command = ["tee", "-a", "/tmp/meeting_transcript.txt"] } }
+# [profiles.meeting.command]
+# type = "spawn_for_each"
+# command = ["tee", "-a", "/tmp/meeting_transcript.txt"]

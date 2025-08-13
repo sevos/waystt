@@ -98,9 +98,8 @@ Command to execute with transcribed text (see COMMAND EXECUTION)
 .SS Spawn command for each transcription:
 .nf
 "command": {
-  "SpawnForEachTranscription": {
-    "command": ["program", "arg1", "arg2"]
-  }
+  "type": "spawn_for_each",
+  "command": ["program", "arg1", "arg2"]
 }
 .fi
 .PP
@@ -124,9 +123,8 @@ cat <<EOF | hotline sendcmd
       }
     },
     "command": {
-      "SpawnForEachTranscription": {
-        "command": ["tee", "-a", "/tmp/transcript.txt"]
-      }
+      "type": "spawn_for_each",
+      "command": ["tee", "-a", "/tmp/transcript.txt"]
     }
   }
 }
@@ -155,9 +153,8 @@ cat <<EOF | hotline sendcmd
     "model": "$MODEL",
     "language": "$LANG",
     "command": {
-      "SpawnForEachTranscription": {
-        "command": ["tee", "-a", "$OUTPUT"]
-      }
+      "type": "spawn_for_each",
+      "command": ["tee", "-a", "$OUTPUT"]
     }
   }
 }

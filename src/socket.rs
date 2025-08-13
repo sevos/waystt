@@ -21,8 +21,24 @@ pub struct StartTranscriptionArgs {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum CommandExecution {
-    SpawnForEachTranscription { command: Vec<String> },
+pub struct CommandExecution {
+    #[serde(rename = "type")]
+    pub command_type: String,
+    pub command: Vec<String>,
+}
+
+impl CommandExecution {
+    #[allow(dead_code)]
+    pub fn spawn_for_each(command: Vec<String>) -> Self {
+        Self {
+            command_type: "spawn_for_each".to_string(),
+            command,
+        }
+    }
+
+    pub fn is_spawn_for_each(&self) -> bool {
+        self.command_type == "spawn_for_each"
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

@@ -306,13 +306,25 @@ fn handle_command(
 
                                             // Execute command if specified
                                             match &command_exec {
-                                                Some(socket::CommandExecution::SpawnForEachTranscription { command }) => {
-                                                    if let Err(e) = command::execute_with_input(command, &transcript).await {
-                                                        eprintln!("Failed to execute command: {}", e);
+                                                Some(cmd_exec) if cmd_exec.is_spawn_for_each() => {
+                                                    if let Err(e) = command::execute_with_input(
+                                                        &cmd_exec.command,
+                                                        &transcript,
+                                                    )
+                                                    .await
+                                                    {
+                                                        eprintln!(
+                                                            "Failed to execute command: {}",
+                                                            e
+                                                        );
                                                     }
                                                 }
                                                 None => {
                                                     // Just print to stdout if no command specified
+                                                    println!("{}", transcript);
+                                                }
+                                                Some(_) => {
+                                                    // Unknown command type, just print to stdout
                                                     println!("{}", transcript);
                                                 }
                                             }

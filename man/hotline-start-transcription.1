@@ -44,7 +44,10 @@ language = "en"
 model = "gpt-4o-mini-transcribe"
 language = "en"
 prompt = "The user is a programmer, expect technical terms."
-command = { SpawnForEachTranscription = { command = ["wl-copy"] } }
+
+[profiles.coding.command]
+type = "spawn_for_each"
+command = ["wl-copy"]
 .fi
 .SS Spanish coding with semantic VAD:
 .nf
@@ -60,7 +63,10 @@ vad_config = { SemanticVad = { eagerness = "medium" } }
 model = "whisper-1"
 language = "auto"
 prompt = "Business meeting with multiple speakers."
-command = { SpawnForEachTranscription = { command = ["tee", "-a", "/tmp/meeting.txt"] } }
+
+[profiles.meeting.command]
+type = "spawn_for_each"
+command = ["tee", "-a", "/tmp/meeting.txt"]
 .fi
 .SH VOICE ACTIVITY DETECTION
 Two VAD modes are available:
@@ -82,15 +88,21 @@ vad_config = { SemanticVad = {
 Profiles can specify commands to process transcribed text:
 .SS Copy to clipboard:
 .nf
-command = { SpawnForEachTranscription = { command = ["wl-copy"] } }
+[profiles.clipboard.command]
+type = "spawn_for_each"
+command = ["wl-copy"]
 .fi
 .SS Type directly via ydotool:
 .nf
-command = { SpawnForEachTranscription = { command = ["ydotool", "type", "--file", "-"] } }
+[profiles.typing.command]
+type = "spawn_for_each"
+command = ["ydotool", "type", "--file", "-"]
 .fi
 .SS Append to file:
 .nf
-command = { SpawnForEachTranscription = { command = ["tee", "-a", "/tmp/transcript.txt"] } }
+[profiles.logging.command]
+type = "spawn_for_each"
+command = ["tee", "-a", "/tmp/transcript.txt"]
 .fi
 .SH EXAMPLES
 .SS Basic usage:

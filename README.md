@@ -189,9 +189,8 @@ echo '{
     "language": "en",
     "prompt": "Technical documentation",
     "command": {
-      "SpawnForEachTranscription": {
-        "command": ["wl-copy"]
-      }
+      "type": "spawn_for_each",
+      "command": ["wl-copy"]
     }
   }
 }' | hotline sendcmd
@@ -304,7 +303,10 @@ To type transcribed text directly into any application:
     [profiles.typing]
     model = "whisper-1"
     language = "en"
-    command = { SpawnForEachTranscription = { command = ["ydotool", "type", "--file", "-"] } }
+    
+    [profiles.typing.command]
+    type = "spawn_for_each"
+    command = ["ydotool", "type", "--file", "-"]
     ```
 
 ## Architecture

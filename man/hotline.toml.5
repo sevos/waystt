@@ -97,23 +97,30 @@ Command to execute with transcribed text (see COMMAND EXECUTION)
 .B vad_config = \fItable\fR
 Voice Activity Detection configuration (see VAD CONFIGURATION)
 .SH COMMAND EXECUTION
-Commands are specified as tables with the following format:
-.SS SpawnForEachTranscription:
+Commands are specified as TOML tables with the following format:
 .nf
-command = { SpawnForEachTranscription = { command = ["program", "arg1", "arg2"] } }
+[profiles.example.command]
+type = "spawn_for_each"
+command = ["program", "arg1", "arg2"]
 .fi
 .PP
 The transcribed text is sent to the command's standard input.
 .SS Examples:
 .nf
 # Copy to clipboard
-command = { SpawnForEachTranscription = { command = ["wl-copy"] } }
+[profiles.clipboard.command]
+type = "spawn_for_each"
+command = ["wl-copy"]
 
 # Type with ydotool
-command = { SpawnForEachTranscription = { command = ["ydotool", "type", "--file", "-"] } }
+[profiles.typing.command]
+type = "spawn_for_each"
+command = ["ydotool", "type", "--file", "-"]
 
 # Append to file
-command = { SpawnForEachTranscription = { command = ["tee", "-a", "/tmp/log.txt"] } }
+[profiles.logging.command]
+type = "spawn_for_each"
+command = ["tee", "-a", "/tmp/log.txt"]
 .fi
 .SH VAD CONFIGURATION
 Voice Activity Detection can be configured in two modes:
@@ -169,7 +176,10 @@ language = "en"
 model = "gpt-4o-mini-transcribe"
 language = "en"
 prompt = "The user is a programmer, expect technical terms."
-command = { SpawnForEachTranscription = { command = ["wl-copy"] } }
+
+[profiles.coding.command]
+type = "spawn_for_each"
+command = ["wl-copy"]
 
 # Profile for Spanish coding with semantic VAD
 [profiles.coding-spanish]
@@ -183,9 +193,10 @@ vad_config = { SemanticVad = { eagerness = "medium" } }
 model = "whisper-1"
 language = "auto"
 prompt = "Business meeting with multiple speakers."
-command = { SpawnForEachTranscription = { 
-    command = ["tee", "-a", "/tmp/meeting_transcript.txt"] 
-} }
+
+[profiles.meeting.command]
+type = "spawn_for_each"
+command = ["tee", "-a", "/tmp/meeting_transcript.txt"]
 
 # Profile for medical dictation
 [profiles.medical]

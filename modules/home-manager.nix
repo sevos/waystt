@@ -244,6 +244,16 @@
             default = null;
             description = "Path to a file with environment variables to load.";
           };
+
+          environment = mkOption {
+            type = types.attrsOf types.str;
+            default = { };
+            description = "Environment variables to set for the systemd service.";
+            example = {
+              OPENAI_API_KEY = "sk-...";
+              RUST_LOG = "debug";
+            };
+          };
         };
       };
 
@@ -261,11 +271,13 @@
             Requires = [ "sound.target" ];
           };
 
-          Service = lib.filterAttrs (_: val: val != null) {
+          Service = lib.filterAttrs (_: val: val != null) ({
             ExecStart = "${lib.getExe cfg.package} daemon";
             Restart = "on-failure";
             EnvironmentFile = cfg.systemdService.environmentFile;
-          };
+          } // lib.optionalAttrs (cfg.systemdService.environment != { }) {
+            Environment = lib.mapAttrsToList (name: value: "${name}=${value}") cfg.systemdService.environment;
+          });
 
           Install = {
             WantedBy = [ "default.target" ];

@@ -3,6 +3,7 @@ use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use futures::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
 use tokio_tungstenite::{
@@ -106,7 +107,9 @@ impl RealtimeTranscriber {
         // Channels for audio input and transcription output
         let (audio_tx, mut audio_rx) = mpsc::channel::<Vec<u8>>(100);
         let (transcript_tx, transcript_rx) = mpsc::channel::<Result<String, String>>(100);
-        let (shutdown_tx, mut shutdown_rx) = mpsc::channel::<()>(1);
+        let (shutdown_tx, shutdown_rx) = mpsc::channel::<()>(1);
+        let mut shutdown_rx = shutdown_rx;
+        let shutdown_flag = Arc::new(AtomicBool::new(false));
 
         // Configure transcription session
         // The API seems to require a "session" wrapper even for transcription_session.update
@@ -149,6 +152,8 @@ impl RealtimeTranscriber {
             let ws_sender = Arc::new(Mutex::new(ws_sender));
             let ws_sender_clone = ws_sender.clone();
             let ws_sender_shutdown = ws_sender.clone();
+            let shutdown_flag_audio = shutdown_flag.clone();
+            let shutdown_flag_receive = shutdown_flag.clone();
 
             // Task to send audio data to WebSocket
             let audio_task = tokio::spawn(async move {
@@ -182,6 +187,7 @@ impl RealtimeTranscriber {
                         }
                         _ = shutdown_rx.recv() => {
                             eprintln!("Received shutdown signal, stopping audio task");
+                            shutdown_flag_audio.store(true, Ordering::Relaxed);
                             break;
                         }
                         else => {
@@ -194,17 +200,32 @@ impl RealtimeTranscriber {
 
             // Task to receive events from WebSocket
             let receive_task = tokio::spawn(async move {
-                while let Some(msg) = ws_receiver.next().await {
-                    match msg {
-                        Ok(Message::Text(text)) => {
-                            // Log response events for debugging
-                            if text.contains("response.text") {
-                                eprintln!("Raw response event: {}", text);
-                            }
+                loop {
+                    // Check shutdown flag
+                    if shutdown_flag_receive.load(Ordering::Relaxed) {
+                        eprintln!("Shutdown flag set, stopping receive task");
+                        break;
+                    }
 
-                            // Parse the event
-                            if let Ok(event) = serde_json::from_str::<RealtimeEvent>(&text) {
-                                match event.event_type.as_str() {
+                    // Use timeout to periodically check shutdown flag
+                    match tokio::time::timeout(
+                        tokio::time::Duration::from_millis(100),
+                        ws_receiver.next(),
+                    )
+                    .await
+                    {
+                        Ok(Some(msg)) => {
+                            match msg {
+                                Ok(Message::Text(text)) => {
+                                    // Log response events for debugging
+                                    if text.contains("response.text") {
+                                        eprintln!("Raw response event: {}", text);
+                                    }
+
+                                    // Parse the event
+                                    if let Ok(event) = serde_json::from_str::<RealtimeEvent>(&text)
+                                    {
+                                        match event.event_type.as_str() {
                                     "conversation.item.input_audio_transcription.completed" => {
                                         // Extract final transcription from the event
                                         if let Some(item) = event.item {
@@ -261,18 +282,28 @@ impl RealtimeTranscriber {
                                     _ => {
                                         // Ignore other events
                                     }
+                                        }
+                                    }
                                 }
+                                Ok(Message::Close(_)) => {
+                                    eprintln!("WebSocket closed");
+                                    break;
+                                }
+                                Err(e) => {
+                                    eprintln!("WebSocket error: {}", e);
+                                    break;
+                                }
+                                _ => {}
                             }
                         }
-                        Ok(Message::Close(_)) => {
-                            eprintln!("WebSocket closed");
+                        Ok(None) => {
+                            // WebSocket stream ended
                             break;
                         }
-                        Err(e) => {
-                            eprintln!("WebSocket error: {}", e);
-                            break;
+                        Err(_) => {
+                            // Timeout - continue to check shutdown flag
+                            continue;
                         }
-                        _ => {}
                     }
                 }
             });

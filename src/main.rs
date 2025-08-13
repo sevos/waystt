@@ -24,6 +24,7 @@ mod beep;
 mod command;
 mod command_executor;
 mod config;
+mod mpris;
 mod socket;
 mod sound_manager;
 mod transcription;
@@ -75,6 +76,11 @@ enum Commands {
         /// Profile name to use (when starting)
         profile: String,
     },
+    /// Run the HotLine MPRIS controller
+    Mpris {
+        /// Profile name to use for toggling
+        profile: String,
+    },
 }
 
 fn get_default_config_path() -> PathBuf {
@@ -117,6 +123,7 @@ async fn main() -> Result<()> {
         Commands::StartTranscription { profile } => run_start_transcription(profile).await,
         Commands::StopTranscription => run_stop_transcription().await,
         Commands::ToggleTranscription { profile } => run_toggle_transcription(profile).await,
+        Commands::Mpris { profile } => mpris::run_mpris_server(profile).await,
     }
 }
 

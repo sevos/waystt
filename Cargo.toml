@@ -29,6 +29,11 @@ base64 = "0.22"
 tokio-tungstenite = { version = "0.27.0", features = ["native-tls"] }
 toml = "0.9.5"
 
+# MPRIS D-Bus integration
+mpris-server = "0.9.0"
+zbus = "5.5"
+futures-channel = "0.3"
+
 
 [dev-dependencies]
 tempfile = "3.0"

@@ -17,7 +17,19 @@
         types
         ;
 
-      finalSettings = cfg.settings;
+      # Recursively filter out null values since TOML doesn't support them
+      filterNulls = attrs:
+        let
+          filtered = lib.filterAttrs (n: v: v != null) attrs;
+        in
+        lib.mapAttrs (n: v:
+          if lib.isAttrs v && !(lib.isDerivation v) then
+            filterNulls v
+          else
+            v
+        ) filtered;
+      
+      finalSettings = filterNulls cfg.settings;
     in
     {
       options.programs.hotline = {

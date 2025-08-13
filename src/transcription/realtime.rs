@@ -43,7 +43,8 @@ impl RealtimeTranscriber {
     }
 
     /// Start a real-time transcription session
-    /// Returns a sender for audio data and a receiver for transcription results
+    /// Returns a sender for audio data, a receiver for transcription results,
+    /// and a shutdown sender to cleanly close the WebSocket connection
     pub async fn start_session(
         &self,
         language: Option<String>,
@@ -52,6 +53,7 @@ impl RealtimeTranscriber {
             mpsc::Sender<Vec<u8>>,                  // Send PCM16 audio data
             mpsc::Receiver<Result<String, String>>, // Receive transcriptions or errors
             tokio::task::JoinHandle<()>,            // WebSocket task handle
+            mpsc::Sender<()>,                       // Shutdown signal sender
         ),
         TranscriptionError,
     > {
@@ -104,6 +106,7 @@ impl RealtimeTranscriber {
         // Channels for audio input and transcription output
         let (audio_tx, mut audio_rx) = mpsc::channel::<Vec<u8>>(100);
         let (transcript_tx, transcript_rx) = mpsc::channel::<Result<String, String>>(100);
+        let (shutdown_tx, mut shutdown_rx) = mpsc::channel::<()>(1);
 
         // Configure transcription session
         // The API seems to require a "session" wrapper even for transcription_session.update
@@ -145,37 +148,48 @@ impl RealtimeTranscriber {
         let ws_task = tokio::spawn(async move {
             let ws_sender = Arc::new(Mutex::new(ws_sender));
             let ws_sender_clone = ws_sender.clone();
+            let ws_sender_shutdown = ws_sender.clone();
 
             // Task to send audio data to WebSocket
             let audio_task = tokio::spawn(async move {
-                while let Some(audio_data) = audio_rx.recv().await {
-                    // Convert PCM16 audio to base64
-                    let audio_base64 = BASE64.encode(&audio_data);
+                loop {
+                    tokio::select! {
+                        Some(audio_data) = audio_rx.recv() => {
+                            // Convert PCM16 audio to base64
+                            let audio_base64 = BASE64.encode(&audio_data);
 
-                    // Create audio append event
-                    let audio_event = json!({
-                        "type": "input_audio_buffer.append",
-                        "audio": audio_base64
-                    });
+                            // Create audio append event
+                            let audio_event = json!({
+                                "type": "input_audio_buffer.append",
+                                "audio": audio_base64
+                            });
 
-                    // Send to WebSocket
-                    {
-                        let mut sender = ws_sender_clone.lock().await;
-                        if sender
-                            .send(Message::text(audio_event.to_string()))
-                            .await
-                            .is_err()
-                        {
-                            eprintln!("Failed to send audio to WebSocket");
+                            // Send to WebSocket
+                            {
+                                let mut sender = ws_sender_clone.lock().await;
+                                if sender
+                                    .send(Message::text(audio_event.to_string()))
+                                    .await
+                                    .is_err()
+                                {
+                                    eprintln!("Failed to send audio to WebSocket");
+                                    break;
+                                }
+                            }
+
+                            // With VAD mode, we don't need to manually commit
+                            // The server will automatically detect speech and commit
+                        }
+                        _ = shutdown_rx.recv() => {
+                            eprintln!("Received shutdown signal, stopping audio task");
+                            break;
+                        }
+                        else => {
+                            // Audio channel closed
                             break;
                         }
                     }
-
-                    // With VAD mode, we don't need to manually commit
-                    // The server will automatically detect speech and commit
                 }
-
-                // Don't send final commit with VAD mode - it handles it automatically
             });
 
             // Task to receive events from WebSocket
@@ -265,8 +279,17 @@ impl RealtimeTranscriber {
 
             // Wait for both tasks
             let _ = tokio::join!(audio_task, receive_task);
+
+            // Send close frame to cleanly disconnect WebSocket
+            eprintln!("Closing WebSocket connection...");
+            {
+                let mut sender = ws_sender_shutdown.lock().await;
+                let _ = sender.send(Message::Close(None)).await;
+                let _ = sender.close().await;
+            }
+            eprintln!("WebSocket connection closed");
         });
 
-        Ok((audio_tx, transcript_rx, ws_task))
+        Ok((audio_tx, transcript_rx, ws_task, shutdown_tx))
     }
 }

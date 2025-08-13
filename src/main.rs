@@ -22,8 +22,10 @@ use tokio::sync::{mpsc, Mutex};
 mod audio;
 mod beep;
 mod command;
+mod command_executor;
 mod config;
 mod socket;
+mod sound_manager;
 mod transcription;
 
 #[cfg(test)]
@@ -31,8 +33,12 @@ mod test_utils;
 #[cfg(not(test))]
 use audio::AudioRecorder;
 #[cfg(not(test))]
-use beep::{BeepConfig, BeepPlayer, BeepType};
+use beep::BeepConfig;
+#[cfg(not(test))]
+use command_executor::CommandExecutor;
 use config::Config;
+#[cfg(not(test))]
+use sound_manager::SoundManager;
 #[cfg(not(test))]
 use transcription::realtime::RealtimeTranscriber;
 
@@ -84,6 +90,7 @@ struct RealtimeState {
     is_recording: Arc<AtomicBool>,
     audio_sender: Arc<Mutex<Option<mpsc::Sender<Vec<u8>>>>>,
     ws_task: Arc<Mutex<Option<tokio::task::JoinHandle<()>>>>,
+    ws_shutdown: Arc<Mutex<Option<mpsc::Sender<()>>>>,
     current_hooks: Arc<Mutex<Option<socket::Hooks>>>,
 }
 
@@ -93,6 +100,7 @@ impl RealtimeState {
             is_recording: Arc::new(AtomicBool::new(false)),
             audio_sender: Arc::new(Mutex::new(None)),
             ws_task: Arc::new(Mutex::new(None)),
+            ws_shutdown: Arc::new(Mutex::new(None)),
             current_hooks: Arc::new(Mutex::new(None)),
         }
     }
@@ -294,7 +302,8 @@ fn handle_command(
     cmd: socket::Command,
     state: RealtimeState,
     transcriber: Arc<RealtimeTranscriber>,
-    beep_player: BeepPlayer,
+    sound_manager: SoundManager,
+    command_executor: CommandExecutor,
     config: Config,
     _pipe_to: Option<Vec<String>>, // Deprecated, kept for compatibility
 ) -> Result<socket::Response> {
@@ -325,41 +334,54 @@ fn handle_command(
 
             // Start transcription session asynchronously
             let state_clone = state.clone();
-            let beep_player_clone = beep_player.clone();
+            let sound_manager_clone = sound_manager.clone();
+            let command_executor_clone = command_executor.clone();
             tokio::spawn(async move {
                 // Store hooks in state for use in stop command
                 *state_for_hooks.current_hooks.lock().await = hooks.clone();
 
-                // Play start beep
-                let _ = beep_player_clone.play_async(BeepType::RecordingStart).await;
+                // Start playing RecordingStart sound indefinitely
+                let sound_handle = match sound_manager_clone.play_recording_start().await {
+                    Ok(handle) => handle,
+                    Err(e) => {
+                        eprintln!("Failed to play recording start sound: {}", e);
+                        sound_manager_clone.play_error();
+                        return;
+                    }
+                };
 
-                // Execute on_transcription_start hook
-                if let Some(ref hooks) = hooks {
-                    if let Some(ref start_hook) = hooks.on_transcription_start {
-                        match start_hook {
-                            socket::CommandExecution::Spawn { command }
-                            | socket::CommandExecution::SpawnWithStdin { command } => {
-                                // For start hook, we don't pipe any input
-                                if let Err(e) = command::execute_with_input(command, "").await {
-                                    eprintln!(
-                                        "Failed to execute on_transcription_start hook: {}",
-                                        e
-                                    );
+                // Try to establish WebSocket connection
+                match transcriber.start_session(language).await {
+                    Ok((audio_tx, mut transcript_rx, ws_task, shutdown_tx)) => {
+                        // WebSocket connection successful - stop the RecordingStart sound
+                        sound_handle.stop().await;
+
+                        // Now execute on_transcription_start hook after sound has stopped
+                        if let Some(ref hooks) = hooks {
+                            if let Some(ref start_hook) = hooks.on_transcription_start {
+                                match start_hook {
+                                    socket::CommandExecution::Spawn { command }
+                                    | socket::CommandExecution::SpawnWithStdin { command } => {
+                                        command_executor_clone.execute_hook(
+                                            "on_transcription_start",
+                                            command,
+                                            String::new(),
+                                        );
+                                    }
                                 }
                             }
                         }
-                    }
-                }
 
-                match transcriber.start_session(language).await {
-                    Ok((audio_tx, mut transcript_rx, ws_task)) => {
+                        // Now we can start sending audio frames to the API
                         *state_clone.audio_sender.lock().await = Some(audio_tx);
                         *state_clone.ws_task.lock().await = Some(ws_task);
+                        *state_clone.ws_shutdown.lock().await = Some(shutdown_tx);
                         state_clone.is_recording.store(true, Ordering::Relaxed);
 
                         // Handle transcriptions
                         let state_inner = state_clone.clone();
-                        let beep_player_inner = beep_player_clone.clone();
+                        let sound_manager_inner = sound_manager_clone.clone();
+                        let command_executor_inner = command_executor_clone.clone();
                         tokio::spawn(async move {
                             while let Some(result) = transcript_rx.recv().await {
                                 match result {
@@ -376,17 +398,13 @@ fn handle_command(
                                                     hooks.on_transcription_receive
                                                 {
                                                     match receive_hook {
-                                                        socket::CommandExecution::SpawnWithStdin { command } => {
-                                                            if let Err(e) = command::execute_with_input(command, &transcript).await {
-                                                                eprintln!("Failed to execute on_transcription_receive hook: {}", e);
-                                                            }
-                                                        }
-                                                        socket::CommandExecution::Spawn { command } => {
-                                                            // For receive hook with Spawn type, we still pass the transcript via stdin
-                                                            // This allows flexibility in command configuration
-                                                            if let Err(e) = command::execute_with_input(command, &transcript).await {
-                                                                eprintln!("Failed to execute on_transcription_receive hook: {}", e);
-                                                            }
+                                                        socket::CommandExecution::SpawnWithStdin { command }
+                                                        | socket::CommandExecution::Spawn { command } => {
+                                                            command_executor_inner.execute_hook(
+                                                                "on_transcription_receive",
+                                                                command,
+                                                                transcript.clone()
+                                                            );
                                                         }
                                                     }
                                                 } else {
@@ -401,11 +419,23 @@ fn handle_command(
                                     }
                                     Err(e) => {
                                         eprintln!("Transcription error: {}", e);
-                                        let _ = beep_player_inner.play_async(BeepType::Error).await;
+                                        sound_manager_inner.play_error();
                                         state_inner.is_recording.store(false, Ordering::Relaxed);
+
+                                        // Send shutdown signal to cleanly close WebSocket
+                                        if let Some(shutdown_tx) =
+                                            state_inner.ws_shutdown.lock().await.take()
+                                        {
+                                            let _ = shutdown_tx.send(()).await;
+                                        }
+
                                         if let Some(task) = state_inner.ws_task.lock().await.take()
                                         {
-                                            task.abort();
+                                            let _ = tokio::time::timeout(
+                                                tokio::time::Duration::from_secs(1),
+                                                task,
+                                            )
+                                            .await;
                                         }
                                         *state_inner.audio_sender.lock().await = None;
                                         break;
@@ -417,8 +447,11 @@ fn handle_command(
                         eprintln!("Audio streaming started");
                     }
                     Err(e) => {
+                        // WebSocket connection failed - stop the RecordingStart sound
+                        sound_handle.stop().await;
+
                         eprintln!("Failed to start WebSocket session: {}", e);
-                        let _ = beep_player_clone.play_async(BeepType::Error).await;
+                        sound_manager_clone.play_error();
                     }
                 }
             });
@@ -438,39 +471,43 @@ fn handle_command(
             state.is_recording.store(false, Ordering::Relaxed);
 
             let state_clone = state.clone();
-            let beep_player_clone = beep_player.clone();
+            let sound_manager_clone = sound_manager.clone();
+            let command_executor_clone = command_executor.clone();
             tokio::spawn(async move {
-                // Play stop beep
-                let _ = beep_player_clone.play_async(BeepType::RecordingStop).await;
-
-                // Close audio sender
-                *state_clone.audio_sender.lock().await = None;
-
-                // Wait for final transcriptions
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-
-                // Cancel WebSocket task
-                if let Some(task) = state_clone.ws_task.lock().await.take() {
-                    task.abort();
-                }
-
-                // Execute on_transcription_stop hook
+                // First, execute on_transcription_stop hook BEFORE playing stop sound
                 let hooks = state_clone.current_hooks.lock().await.clone();
                 if let Some(hooks) = hooks {
                     if let Some(stop_hook) = hooks.on_transcription_stop {
                         match stop_hook {
                             socket::CommandExecution::Spawn { command }
                             | socket::CommandExecution::SpawnWithStdin { command } => {
-                                // For stop hook, we don't pipe any input
-                                if let Err(e) = command::execute_with_input(&command, "").await {
-                                    eprintln!(
-                                        "Failed to execute on_transcription_stop hook: {}",
-                                        e
-                                    );
-                                }
+                                command_executor_clone.execute_hook(
+                                    "on_transcription_stop",
+                                    &command,
+                                    String::new(),
+                                );
                             }
                         }
                     }
+                }
+
+                // Now play stop beep and wait for it to complete
+                if let Err(e) = sound_manager_clone.play_recording_stop().await {
+                    eprintln!("Failed to play recording stop sound: {}", e);
+                }
+
+                // Only close audio resources AFTER the stop sound has finished
+                *state_clone.audio_sender.lock().await = None;
+
+                // Send shutdown signal to cleanly close WebSocket
+                if let Some(shutdown_tx) = state_clone.ws_shutdown.lock().await.take() {
+                    let _ = shutdown_tx.send(()).await;
+                }
+
+                // Wait for WebSocket task to complete cleanly
+                if let Some(task) = state_clone.ws_task.lock().await.take() {
+                    // Give it a moment to close cleanly, then abort if needed
+                    let _ = tokio::time::timeout(tokio::time::Duration::from_secs(2), task).await;
                 }
 
                 // Clear hooks from state
@@ -490,40 +527,44 @@ fn handle_command(
                 state.is_recording.store(false, Ordering::Relaxed);
 
                 let state_clone = state.clone();
-                let beep_player_clone = beep_player.clone();
+                let sound_manager_clone = sound_manager.clone();
+                let command_executor_clone = command_executor.clone();
                 tokio::spawn(async move {
-                    // Play stop beep
-                    let _ = beep_player_clone.play_async(BeepType::RecordingStop).await;
-
-                    // Close audio sender
-                    *state_clone.audio_sender.lock().await = None;
-
-                    // Wait for final transcriptions
-                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-
-                    // Cancel WebSocket task
-                    if let Some(task) = state_clone.ws_task.lock().await.take() {
-                        task.abort();
-                    }
-
-                    // Execute on_transcription_stop hook
+                    // First, execute on_transcription_stop hook BEFORE playing stop sound
                     let hooks = state_clone.current_hooks.lock().await.clone();
                     if let Some(hooks) = hooks {
                         if let Some(stop_hook) = hooks.on_transcription_stop {
                             match stop_hook {
                                 socket::CommandExecution::Spawn { command }
                                 | socket::CommandExecution::SpawnWithStdin { command } => {
-                                    // For stop hook, we don't pipe any input
-                                    if let Err(e) = command::execute_with_input(&command, "").await
-                                    {
-                                        eprintln!(
-                                            "Failed to execute on_transcription_stop hook: {}",
-                                            e
-                                        );
-                                    }
+                                    command_executor_clone.execute_hook(
+                                        "on_transcription_stop",
+                                        &command,
+                                        String::new(),
+                                    );
                                 }
                             }
                         }
+                    }
+
+                    // Now play stop beep and wait for it to complete
+                    if let Err(e) = sound_manager_clone.play_recording_stop().await {
+                        eprintln!("Failed to play recording stop sound: {}", e);
+                    }
+
+                    // Only close audio resources AFTER the stop sound has finished
+                    *state_clone.audio_sender.lock().await = None;
+
+                    // Send shutdown signal to cleanly close WebSocket
+                    if let Some(shutdown_tx) = state_clone.ws_shutdown.lock().await.take() {
+                        let _ = shutdown_tx.send(()).await;
+                    }
+
+                    // Wait for WebSocket task to complete cleanly
+                    if let Some(task) = state_clone.ws_task.lock().await.take() {
+                        // Give it a moment to close cleanly, then abort if needed
+                        let _ =
+                            tokio::time::timeout(tokio::time::Duration::from_secs(2), task).await;
                     }
 
                     // Clear hooks from state
@@ -556,41 +597,54 @@ fn handle_command(
 
                 // Start transcription session asynchronously
                 let state_clone = state.clone();
-                let beep_player_clone = beep_player.clone();
+                let sound_manager_clone = sound_manager.clone();
+                let command_executor_clone = command_executor.clone();
                 tokio::spawn(async move {
                     // Store hooks in state for use in stop command
                     *state_for_hooks.current_hooks.lock().await = hooks.clone();
 
-                    // Play start beep
-                    let _ = beep_player_clone.play_async(BeepType::RecordingStart).await;
+                    // Start playing RecordingStart sound indefinitely
+                    let sound_handle = match sound_manager_clone.play_recording_start().await {
+                        Ok(handle) => handle,
+                        Err(e) => {
+                            eprintln!("Failed to play recording start sound: {}", e);
+                            sound_manager_clone.play_error();
+                            return;
+                        }
+                    };
 
-                    // Execute on_transcription_start hook
-                    if let Some(ref hooks) = hooks {
-                        if let Some(ref start_hook) = hooks.on_transcription_start {
-                            match start_hook {
-                                socket::CommandExecution::Spawn { command }
-                                | socket::CommandExecution::SpawnWithStdin { command } => {
-                                    // For start hook, we don't pipe any input
-                                    if let Err(e) = command::execute_with_input(command, "").await {
-                                        eprintln!(
-                                            "Failed to execute on_transcription_start hook: {}",
-                                            e
-                                        );
+                    // Try to establish WebSocket connection
+                    match transcriber.start_session(language).await {
+                        Ok((audio_tx, mut transcript_rx, ws_task, shutdown_tx)) => {
+                            // WebSocket connection successful - stop the RecordingStart sound
+                            sound_handle.stop().await;
+
+                            // Now execute on_transcription_start hook after sound has stopped
+                            if let Some(ref hooks) = hooks {
+                                if let Some(ref start_hook) = hooks.on_transcription_start {
+                                    match start_hook {
+                                        socket::CommandExecution::Spawn { command }
+                                        | socket::CommandExecution::SpawnWithStdin { command } => {
+                                            command_executor_clone.execute_hook(
+                                                "on_transcription_start",
+                                                command,
+                                                String::new(),
+                                            );
+                                        }
                                     }
                                 }
                             }
-                        }
-                    }
 
-                    match transcriber.start_session(language).await {
-                        Ok((audio_tx, mut transcript_rx, ws_task)) => {
+                            // Now we can start sending audio frames to the API
                             *state_clone.audio_sender.lock().await = Some(audio_tx);
                             *state_clone.ws_task.lock().await = Some(ws_task);
+                            *state_clone.ws_shutdown.lock().await = Some(shutdown_tx);
                             state_clone.is_recording.store(true, Ordering::Relaxed);
 
                             // Handle transcriptions
                             let state_inner = state_clone.clone();
-                            let beep_player_inner = beep_player_clone.clone();
+                            let sound_manager_inner = sound_manager_clone.clone();
+                            let command_executor_inner = command_executor_clone.clone();
                             tokio::spawn(async move {
                                 while let Some(result) = transcript_rx.recv().await {
                                     match result {
@@ -607,17 +661,13 @@ fn handle_command(
                                                         hooks.on_transcription_receive
                                                     {
                                                         match receive_hook {
-                                                            socket::CommandExecution::SpawnWithStdin { command } => {
-                                                                if let Err(e) = command::execute_with_input(command, &transcript).await {
-                                                                    eprintln!("Failed to execute on_transcription_receive hook: {}", e);
-                                                                }
-                                                            }
-                                                            socket::CommandExecution::Spawn { command } => {
-                                                                // For receive hook with Spawn type, we still pass the transcript via stdin
-                                                                // This allows flexibility in command configuration
-                                                                if let Err(e) = command::execute_with_input(command, &transcript).await {
-                                                                    eprintln!("Failed to execute on_transcription_receive hook: {}", e);
-                                                                }
+                                                            socket::CommandExecution::SpawnWithStdin { command }
+                                                            | socket::CommandExecution::Spawn { command } => {
+                                                                command_executor_inner.execute_hook(
+                                                                    "on_transcription_receive",
+                                                                    command,
+                                                                    transcript.clone()
+                                                                );
                                                             }
                                                         }
                                                     } else {
@@ -633,8 +683,7 @@ fn handle_command(
                                         Err(e) => {
                                             eprintln!("Transcription error: {}", e);
                                             // Play error beep
-                                            let _ =
-                                                beep_player_inner.play_async(BeepType::Error).await;
+                                            sound_manager_inner.play_error();
                                         }
                                     }
                                 }
@@ -648,10 +697,13 @@ fn handle_command(
                             eprintln!("Audio streaming started (toggled)");
                         }
                         Err(e) => {
+                            // WebSocket connection failed - stop the RecordingStart sound
+                            sound_handle.stop().await;
+
                             eprintln!("Failed to start transcription session: {}", e);
                             state_clone.is_recording.store(false, Ordering::Relaxed);
                             // Play error beep
-                            let _ = beep_player_clone.play_async(BeepType::Error).await;
+                            sound_manager_clone.play_error();
                         }
                     }
                 });
@@ -710,12 +762,13 @@ async fn run_daemon(envfile: Option<PathBuf>) -> Result<()> {
     // Main event loop
     #[cfg(not(test))]
     {
-        // Initialize beep player
+        // Initialize sound manager and command executor
         let beep_config = BeepConfig {
             enabled: config.enable_audio_feedback,
             volume: config.beep_volume,
         };
-        let beep_player = BeepPlayer::new(beep_config)?;
+        let sound_manager = SoundManager::new(beep_config)?;
+        let command_executor = CommandExecutor::new();
 
         // Create channel for audio samples
         let (audio_tx, mut audio_rx) = tokio::sync::mpsc::unbounded_channel::<Vec<f32>>();
@@ -725,7 +778,7 @@ async fn run_daemon(envfile: Option<PathBuf>) -> Result<()> {
             Ok(recorder) => recorder,
             Err(e) => {
                 eprintln!("Failed to initialize audio recorder: {}", e);
-                let _ = beep_player.play_async(BeepType::Error).await;
+                sound_manager.play_error();
                 return Err(e);
             }
         };
@@ -734,12 +787,12 @@ async fn run_daemon(envfile: Option<PathBuf>) -> Result<()> {
         // Start recording immediately
         if let Err(e) = recorder.start_recording() {
             eprintln!("Failed to start recording: {}", e);
-            let _ = beep_player.play_async(BeepType::Error).await;
+            sound_manager.play_error();
             return Err(e);
         }
 
-        // Play "line ready" sound
-        let _ = beep_player.play_async(BeepType::LineReady).await;
+        // Play "line ready" sound (fire and forget, non-blocking)
+        sound_manager.play_line_ready();
         eprintln!("Continuous recording started. Microphone is active. System ready.");
 
         // Initialize state
@@ -770,7 +823,8 @@ async fn run_daemon(envfile: Option<PathBuf>) -> Result<()> {
         // Spawn socket handler task
         let state_socket = state.clone();
         let transcriber_socket = transcriber.clone();
-        let beep_player_socket = beep_player.clone();
+        let sound_manager_socket = sound_manager.clone();
+        let command_executor_socket = command_executor.clone();
         let config_socket = config.clone();
         let pipe_to_socket = None::<Vec<String>>;
         let shutdown_socket = shutdown.clone();
@@ -781,7 +835,8 @@ async fn run_daemon(envfile: Option<PathBuf>) -> Result<()> {
                     Ok((stream, _)) => {
                         let state_handler = state_socket.clone();
                         let transcriber_handler = transcriber_socket.clone();
-                        let beep_player_handler = beep_player_socket.clone();
+                        let sound_manager_handler = sound_manager_socket.clone();
+                        let command_executor_handler = command_executor_socket.clone();
                         let config_handler = config_socket.clone();
                         let pipe_to_handler = pipe_to_socket.clone();
 
@@ -791,7 +846,8 @@ async fn run_daemon(envfile: Option<PathBuf>) -> Result<()> {
                                     cmd,
                                     state_handler.clone(),
                                     transcriber_handler.clone(),
-                                    beep_player_handler.clone(),
+                                    sound_manager_handler.clone(),
+                                    command_executor_handler.clone(),
                                     config_handler.clone(),
                                     pipe_to_handler.clone(),
                                 )
@@ -859,8 +915,11 @@ async fn run_daemon(envfile: Option<PathBuf>) -> Result<()> {
         }
 
         // Cancel WebSocket task if streaming
+        if let Some(shutdown_tx) = state.ws_shutdown.lock().await.take() {
+            let _ = shutdown_tx.send(()).await;
+        }
         if let Some(task) = state.ws_task.lock().await.take() {
-            task.abort();
+            let _ = tokio::time::timeout(tokio::time::Duration::from_secs(2), task).await;
         }
 
         // Clean up socket file

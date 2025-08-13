@@ -12,6 +12,7 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::oneshot;
 
 /// Types of beeps for different events.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -80,6 +81,49 @@ impl BeepPlayer {
 
         let volume = self.config.volume;
         tokio::task::spawn_blocking(move || Self::play_beep_internal(beep_type, volume)).await??;
+        Ok(())
+    }
+
+    /// Play a beep indefinitely until stop signal is received.
+    /// This is specifically designed for RecordingStart sound that needs to play
+    /// until WebSocket connection is established.
+    pub async fn play_indefinite(
+        &self,
+        beep_type: BeepType,
+        stop_rx: oneshot::Receiver<()>,
+    ) -> Result<()> {
+        if !self.config.enabled {
+            return Ok(());
+        }
+
+        let volume = self.config.volume;
+
+        // For RecordingStart, we'll loop the sound until stopped
+        if beep_type == BeepType::RecordingStart {
+            let (cancel_tx, cancel_rx) = oneshot::channel::<()>();
+            let cancel_flag = Arc::new(AtomicBool::new(false));
+            let cancel_flag_clone = cancel_flag.clone();
+
+            // Spawn task to listen for stop signal
+            tokio::spawn(async move {
+                tokio::select! {
+                    _ = stop_rx => {
+                        cancel_flag_clone.store(true, Ordering::Relaxed);
+                        let _ = cancel_tx.send(());
+                    }
+                }
+            });
+
+            // Play the sound in a loop until cancelled
+            tokio::task::spawn_blocking(move || {
+                Self::play_beep_internal_with_cancel(beep_type, volume, cancel_flag, cancel_rx)
+            })
+            .await??;
+        } else {
+            // For other sounds, just play once
+            self.play_async(beep_type).await?;
+        }
+
         Ok(())
     }
 
@@ -153,6 +197,124 @@ impl BeepPlayer {
             BeepType::RecordingStop => 2.0,
             BeepType::Error => 1.0,
         }
+    }
+
+    /// Internal beep generation using CPAL with cancellation support.
+    fn play_beep_internal_with_cancel(
+        beep_type: BeepType,
+        volume: f32,
+        cancel_flag: Arc<AtomicBool>,
+        mut cancel_rx: oneshot::Receiver<()>,
+    ) -> Result<()> {
+        let host = cpal::default_host();
+        let device = match host.default_output_device() {
+            Some(device) => device,
+            None => {
+                eprintln!("Warning: No audio output device available for beeps");
+                return Ok(());
+            }
+        };
+
+        let config = match device.default_output_config() {
+            Ok(config) => config,
+            Err(e) => {
+                eprintln!(
+                    "Warning: Failed to get audio output config for beeps: {}",
+                    e
+                );
+                return Ok(());
+            }
+        };
+
+        let sample_rate = config.sample_rate().0 as f32;
+        let channels = config.channels() as usize;
+
+        // For indefinite playback, we'll loop the sequence
+        let sequence = Self::get_beep_sequence(beep_type);
+        let volume_multiplier = Self::get_volume_multiplier(beep_type);
+        let final_volume = volume * volume_multiplier;
+
+        let playing = Arc::new(AtomicBool::new(true));
+        let playing_clone = playing.clone();
+
+        let mut sample_index = 0usize;
+        let mut phase1 = 0.0f32;
+        let mut phase2 = 0.0f32;
+
+        // For looping sounds, we need to track total samples differently
+        let loop_duration_ms: f32 = sequence.iter().map(|s| s.duration_ms).sum();
+        let loop_sample_count = (sample_rate * loop_duration_ms / 1000.0) as usize;
+
+        let cancel_flag_f32 = cancel_flag.clone();
+        let cancel_flag_i16 = cancel_flag.clone();
+
+        let stream = match config.sample_format() {
+            cpal::SampleFormat::F32 => device.build_output_stream(
+                &config.into(),
+                move |data: &mut [f32], _: &cpal::OutputCallbackInfo| {
+                    Self::fill_audio_buffer_looping_f32(
+                        data,
+                        &mut sample_index,
+                        &mut phase1,
+                        &mut phase2,
+                        loop_sample_count,
+                        &sequence,
+                        sample_rate,
+                        channels,
+                        final_volume,
+                        &playing_clone,
+                        &cancel_flag_f32,
+                    );
+                },
+                |err| eprintln!("Audio stream error: {}", err),
+                None,
+            )?,
+            cpal::SampleFormat::I16 => device.build_output_stream(
+                &config.into(),
+                move |data: &mut [i16], _: &cpal::OutputCallbackInfo| {
+                    Self::fill_audio_buffer_looping_i16(
+                        data,
+                        &mut sample_index,
+                        &mut phase1,
+                        &mut phase2,
+                        loop_sample_count,
+                        &sequence,
+                        sample_rate,
+                        channels,
+                        final_volume,
+                        &playing_clone,
+                        &cancel_flag_i16,
+                    );
+                },
+                |err| eprintln!("Audio stream error: {}", err),
+                None,
+            )?,
+            _ => {
+                eprintln!("Warning: Unsupported audio format for beeps");
+                return Ok(());
+            }
+        };
+
+        stream.play()?;
+
+        // Wait for cancellation or natural completion
+        loop {
+            if cancel_flag.load(Ordering::Relaxed) || !playing.load(Ordering::Relaxed) {
+                break;
+            }
+
+            // Check for cancellation signal
+            match cancel_rx.try_recv() {
+                Ok(_) => break,
+                Err(oneshot::error::TryRecvError::Closed) => break,
+                Err(oneshot::error::TryRecvError::Empty) => {}
+            }
+
+            std::thread::sleep(Duration::from_millis(10));
+        }
+
+        drop(stream);
+        Ok(())
     }
 
     /// Internal beep generation using CPAL.
@@ -244,6 +406,134 @@ impl BeepPlayer {
         }
         drop(stream);
         Ok(())
+    }
+
+    /// Fill audio buffer with f32 samples (looping version for indefinite playback).
+    fn fill_audio_buffer_looping_f32(
+        data: &mut [f32],
+        sample_index: &mut usize,
+        phase1: &mut f32,
+        phase2: &mut f32,
+        loop_sample_count: usize,
+        sequence: &[BeepSegment],
+        sample_rate: f32,
+        channels: usize,
+        volume: f32,
+        playing: &Arc<AtomicBool>,
+        cancel_flag: &Arc<AtomicBool>,
+    ) {
+        for frame in data.chunks_mut(channels) {
+            if cancel_flag.load(Ordering::Relaxed) {
+                playing.store(false, Ordering::Relaxed);
+                for sample in frame {
+                    *sample = 0.0;
+                }
+                continue;
+            }
+
+            // Loop the sample index
+            let loop_index = *sample_index % loop_sample_count;
+            let current_ms = (loop_index as f32 / sample_rate) * 1000.0;
+
+            let mut elapsed_ms = 0.0;
+            let mut current_segment = None;
+            for segment in sequence {
+                if current_ms < elapsed_ms + segment.duration_ms {
+                    current_segment = Some(segment);
+                    break;
+                }
+                elapsed_ms += segment.duration_ms;
+            }
+
+            let sample_value = if let Some(segment) = current_segment {
+                match segment.sound_type {
+                    SoundType::Single(freq) => {
+                        let val = (*phase1 * 2.0 * std::f32::consts::PI).sin() * volume;
+                        *phase1 = (*phase1 + freq / sample_rate) % 1.0;
+                        val
+                    }
+                    SoundType::Dual(freq1, freq2) => {
+                        let signal1 = (*phase1 * 2.0 * std::f32::consts::PI).sin();
+                        let signal2 = (*phase2 * 2.0 * std::f32::consts::PI).sin();
+                        *phase1 = (*phase1 + freq1 / sample_rate) % 1.0;
+                        *phase2 = (*phase2 + freq2 / sample_rate) % 1.0;
+                        (signal1 + signal2) * 0.5 * volume
+                    }
+                    SoundType::Silence => 0.0,
+                }
+            } else {
+                0.0
+            };
+
+            for sample in frame {
+                *sample = sample_value;
+            }
+            *sample_index += 1;
+        }
+    }
+
+    /// Fill audio buffer with i16 samples (looping version for indefinite playback).
+    fn fill_audio_buffer_looping_i16(
+        data: &mut [i16],
+        sample_index: &mut usize,
+        phase1: &mut f32,
+        phase2: &mut f32,
+        loop_sample_count: usize,
+        sequence: &[BeepSegment],
+        sample_rate: f32,
+        channels: usize,
+        volume: f32,
+        playing: &Arc<AtomicBool>,
+        cancel_flag: &Arc<AtomicBool>,
+    ) {
+        for frame in data.chunks_mut(channels) {
+            if cancel_flag.load(Ordering::Relaxed) {
+                playing.store(false, Ordering::Relaxed);
+                for sample in frame {
+                    *sample = 0;
+                }
+                continue;
+            }
+
+            // Loop the sample index
+            let loop_index = *sample_index % loop_sample_count;
+            let current_ms = (loop_index as f32 / sample_rate) * 1000.0;
+
+            let mut elapsed_ms = 0.0;
+            let mut current_segment = None;
+            for segment in sequence {
+                if current_ms < elapsed_ms + segment.duration_ms {
+                    current_segment = Some(segment);
+                    break;
+                }
+                elapsed_ms += segment.duration_ms;
+            }
+
+            let sample_value = if let Some(segment) = current_segment {
+                match segment.sound_type {
+                    SoundType::Single(freq) => {
+                        let val = (*phase1 * 2.0 * std::f32::consts::PI).sin() * volume;
+                        *phase1 = (*phase1 + freq / sample_rate) % 1.0;
+                        (val * i16::MAX as f32) as i16
+                    }
+                    SoundType::Dual(freq1, freq2) => {
+                        let signal1 = (*phase1 * 2.0 * std::f32::consts::PI).sin();
+                        let signal2 = (*phase2 * 2.0 * std::f32::consts::PI).sin();
+                        *phase1 = (*phase1 + freq1 / sample_rate) % 1.0;
+                        *phase2 = (*phase2 + freq2 / sample_rate) % 1.0;
+                        ((signal1 + signal2) * 0.5 * volume * i16::MAX as f32) as i16
+                    }
+                    SoundType::Silence => 0,
+                }
+            } else {
+                0
+            };
+
+            for sample in frame {
+                *sample = sample_value;
+            }
+            *sample_index += 1;
+        }
     }
 
     /// Fill audio buffer with f32 samples.

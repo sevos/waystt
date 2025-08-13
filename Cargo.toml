@@ -4,7 +4,7 @@ version = "0.2.3"
 edition = "2021"
 description = "A minimalist speech-to-text (STT) tool."
 license = "GPL-3.0-or-later"
-authors = ["Artur Roszczyk <artur.roszczyk@gmail.com>"]
+authors = ["Roberto Abdelkader Martínez Pérez <robertomartinezp@gmail.com>"]
 
 [dependencies]
 # Core dependencies (essential)

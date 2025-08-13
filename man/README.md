@@ -86,6 +86,6 @@ hotline config
 
 ## See Also
 
-- Project repository: https://github.com/sevos/hotline
+- Project repository: https://github.com/nilp0inter/hotline
 - TOML specification: https://toml.io
 - OpenAI API documentation: https://platform.openai.com/docs

@@ -378,4 +378,8 @@ Contributions are welcome! Please:
 Licensed under GPL v3.0 or later. See [LICENSE](LICENSE) for details.
 
 ---
-*Source code: https://github.com/sevos/hotline*
+*Source code: https://github.com/nilp0inter/hotline*
+
+## Fork Information
+
+This project is a heavily modified fork of [sevos/waystt](https://github.com/sevos/waystt). While the core concept and inspiration are credited to the original author, this version has been almost completely rewritten to modernize the architecture, expand features, and improve the overall user experience.

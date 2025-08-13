@@ -1,9 +1,11 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[allow(clippy::enum_variant_names)] // Transcription suffix is intentional for clarity
 pub enum Command {
     StartTranscription(StartTranscriptionArgs),
     StopTranscription,
+    ToggleTranscription(StartTranscriptionArgs), // Same args as Start for profile support
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

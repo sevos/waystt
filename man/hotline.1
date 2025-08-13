@@ -21,6 +21,9 @@ Start transcription using the specified profile
 .B stop-transcription
 Stop the current transcription session
 .TP
+.B toggle-transcription \fIPROFILE\fR
+Toggle transcription (start if stopped, stop if running)
+.TP
 .B sendcmd
 Send a raw JSON command to the daemon (reads from stdin)
 .TP
@@ -106,6 +109,9 @@ hotline start-transcription coding
 
 # Stop transcription
 hotline stop-transcription
+
+# Toggle transcription (great for keybindings)
+hotline toggle-transcription coding
 .fi
 .SS Advanced usage with JSON commands:
 .nf
@@ -146,6 +152,7 @@ Report bugs at: https://github.com/sevos/hotline/issues
 .BR hotline-daemon (1),
 .BR hotline-start-transcription (1),
 .BR hotline-stop-transcription (1),
+.BR hotline-toggle-transcription (1),
 .BR hotline-sendcmd (1),
 .BR hotline-config (1),
 .BR hotline.toml (5)

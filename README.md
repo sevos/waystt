@@ -175,6 +175,9 @@ hotline start-transcription coding-spanish
 
 # Stop current transcription
 hotline stop-transcription
+
+# Toggle transcription (start if stopped, stop if running)
+hotline toggle-transcription coding
 ```
 
 #### Advanced JSON Commands
@@ -335,6 +338,32 @@ To type transcribed text directly into any application:
     type = "spawn_with_stdin"
     command = ["ydotool", "type", "--file", "-"]
     ```
+
+## Keybinding Integration
+
+The `toggle-transcription` command is perfect for keybindings in your window manager:
+
+### Sway/i3 Example
+```bash
+# Add to ~/.config/sway/config or ~/.config/i3/config
+bindsym $mod+t exec hotline toggle-transcription coding
+bindsym $mod+Shift+t exec hotline toggle-transcription meeting
+```
+
+### GNOME Example
+```bash
+# Set custom keybinding via command line
+gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "['/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/']"
+gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/ name 'Toggle Transcription'
+gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/ command 'hotline toggle-transcription coding'
+gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/custom0/ binding '<Super>t'
+```
+
+### KDE Plasma Example
+1. System Settings → Shortcuts → Custom Shortcuts
+2. Edit → New → Global Shortcut → Command/URL
+3. Set trigger to your preferred key combination
+4. Set action to: `hotline toggle-transcription coding`
 
 ## Architecture
 

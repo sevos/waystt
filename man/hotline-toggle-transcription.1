@@ -1,0 +1,127 @@
+.TH HOTLINE-TOGGLE-TRANSCRIPTION 1 "2024" "HotLine" "User Commands"
+.SH NAME
+hotline-toggle-transcription \- toggle transcription session
+.SH SYNOPSIS
+.B hotline toggle-transcription
+.I profile
+.SH DESCRIPTION
+The
+.B hotline toggle-transcription
+command toggles a transcription session using settings from a named profile defined in the configuration file.
+
+If transcription is currently stopped, it starts a new session.
+If transcription is currently running, it stops the session.
+
+This command sends a ToggleTranscription message to the running hotline daemon via UNIX socket. The daemon must be running for this command to work.
+.SH ARGUMENTS
+.TP
+.I profile
+Name of the profile to use when starting transcription. The profile must be defined in the configuration file (hotline.toml).
+.SH CONFIGURATION
+Profiles are defined in the configuration file and can specify:
+.TP
+.B model
+Transcription model to use (e.g., "whisper-1", "gpt-4o-transcribe")
+.TP
+.B language
+Language code (e.g., "en", "es", "auto")
+.TP
+.B prompt
+Context prompt to guide transcription
+.TP
+.B hooks
+Lifecycle hooks for command execution (see LIFECYCLE HOOKS)
+.TP
+.B vad_config
+Voice Activity Detection configuration (see VAD CONFIGURATION)
+.SH PROFILE EXAMPLES
+.SS Basic profile:
+.nf
+[profiles.default]
+model = "whisper-1"
+language = "en"
+.fi
+.SS Coding profile with hooks:
+.nf
+[profiles.coding]
+model = "gpt-4o-mini-transcribe"
+language = "en"
+prompt = "The user is a programmer, expect technical terms."
+
+[profiles.coding.hooks.on_transcription_start]
+type = "spawn"
+command = ["notify-send", "Recording toggled on"]
+
+[profiles.coding.hooks.on_transcription_receive]
+type = "spawn_with_stdin"
+command = ["wl-copy"]
+
+[profiles.coding.hooks.on_transcription_stop]
+type = "spawn"
+command = ["notify-send", "Recording toggled off"]
+.fi
+.SH LIFECYCLE HOOKS
+Profiles can specify hooks to execute commands at different stages:
+.SS Start hook:
+.nf
+[profiles.example.hooks.on_transcription_start]
+type = "spawn"
+command = ["notify-send", "Recording started"]
+.fi
+.SS Receive hook:
+.nf
+[profiles.example.hooks.on_transcription_receive]
+type = "spawn_with_stdin"
+command = ["wl-copy"]
+.fi
+.SS Stop hook:
+.nf
+[profiles.example.hooks.on_transcription_stop]
+type = "spawn"
+command = ["notify-send", "Recording stopped"]
+.fi
+.SH EXAMPLES
+.SS Toggle with default profile:
+.nf
+# First call starts transcription
+hotline toggle-transcription default
+
+# Second call stops transcription
+hotline toggle-transcription default
+.fi
+.SS Toggle with coding profile:
+.nf
+hotline toggle-transcription coding
+.fi
+.SS Use in a keybinding:
+.nf
+# In your window manager config (e.g., i3, sway)
+bindsym $mod+t exec hotline toggle-transcription coding
+.fi
+.SH EXIT STATUS
+.TP
+.B 0
+Success
+.TP
+.B 1
+Error (daemon not running, profile not found, or command failed)
+.SH FILES
+.TP
+.I $XDG_CONFIG_HOME/hotline/hotline.toml
+User configuration file
+.TP
+.I ~/.config/hotline/hotline.toml
+Alternative configuration location
+.TP
+.I $XDG_RUNTIME_DIR/hotline.sock
+UNIX socket for daemon communication
+.SH SEE ALSO
+.BR hotline (1),
+.BR hotline-daemon (1),
+.BR hotline-start-transcription (1),
+.BR hotline-stop-transcription (1),
+.BR hotline.toml (5)
+.SH BUGS
+Report bugs at: https://github.com/yourusername/hotline/issues
+.SH AUTHOR
+Written by the HotLine contributors.

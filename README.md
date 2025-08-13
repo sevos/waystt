@@ -23,39 +23,6 @@ And if something goes sideways — say, no API connection — you'll hear the un
 
 No visual distractions. Just you, your voice, and the comforting sounds of analog feedback.
 
-## Requirements
-
-- **OpenAI API key**
-- **System packages**:
-  ```bash
-  # Arch Linux
-  sudo pacman -S pipewire
-
-  # Ubuntu/Debian
-  sudo apt install pipewire-pulse
-
-  # Fedora
-  sudo dnf install pipewire-pulseaudio
-  ```
-
-## Installation
-
-1.  **Download the latest binary** from the [GitHub Releases](https://github.com/sevos/hotline/releases) page.
-2.  **Install the binary**:
-    ```bash
-    # Download the binary
-    wget https://github.com/sevos/hotline/releases/latest/download/hotline-linux-x86_64
-
-    # Make it executable
-    chmod +x hotline-linux-x86_64
-
-    # Move it to a directory in your PATH
-    mkdir -p ~/.local/bin
-    mv hotline-linux-x86_64 ~/.local/bin/hotline
-
-    # Add ~/.local/bin to your PATH if it's not already (add to ~/.bashrc or ~/.zshrc)
-    export PATH="$HOME/.local/bin:$PATH"
-    ```
 
 ## Configuration
 
@@ -396,54 +363,6 @@ HotLine uses a client-server architecture:
 - Check file permissions on config files
 - Ensure TOML syntax is correct
 
-## Development
-
-### Building from Source
-
-```bash
-# Clone the repository
-git clone https://github.com/sevos/hotline
-cd hotline
-
-# Build release version
-cargo build --release
-
-# Binary will be at target/release/hotline
-```
-
-### Testing
-
-```bash
-# Run all tests (with audio feedback disabled)
-BEEP_VOLUME=0.0 cargo test
-
-# Run specific test
-BEEP_VOLUME=0.0 cargo test test_name
-
-# Check code formatting
-cargo fmt --all -- --check
-
-# Run linter
-cargo clippy --all-targets -- -D warnings
-```
-
-### Project Structure
-
-```
-hotline/
-├── src/
-│   ├── main.rs           # CLI and subcommands
-│   ├── socket.rs         # UNIX socket communication
-│   ├── config.rs         # Configuration management
-│   ├── audio.rs          # Audio recording (PipeWire/CPAL)
-│   ├── beep.rs           # Audio feedback system
-│   ├── transcription/
-│   │   ├── mod.rs        # Transcription provider abstraction
-│   │   └── realtime.rs   # OpenAI Real-time API client
-│   └── command.rs        # Command execution utilities
-├── hotline.toml.example  # Example configuration
-└── README.md
-```
 
 ## Contributing
 

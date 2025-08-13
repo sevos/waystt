@@ -262,7 +262,7 @@
           };
 
           Service = lib.filterAttrs (_: val: val != null) {
-            ExecStart = "${cfg.package}/bin/hotline-daemon";
+            ExecStart = "${lib.getExe cfg.package} daemon";
             Restart = "on-failure";
             EnvironmentFile = cfg.systemdService.environmentFile;
           };

@@ -46,11 +46,19 @@ model = "whisper-1"
 language = "en"
 prompt = "The user is a programmer, so expect technical terms."
 
-# Example command to copy transcribed text to clipboard
-# Commands use a tagged format for extensibility - each type can have different fields
-# [profiles.coding.command]
-# type = "spawn_for_each"  # Currently the only supported type
+# Example hooks for lifecycle events
+# Hooks allow running commands at different stages of transcription
+# [profiles.coding.hooks.on_transcription_start]
+# type = "spawn"
+# command = ["notify-send", "Recording started"]
+
+# [profiles.coding.hooks.on_transcription_receive]
+# type = "spawn_with_stdin"  # Text is piped to stdin
 # command = ["wl-copy"]
+
+# [profiles.coding.hooks.on_transcription_stop]
+# type = "spawn"
+# command = ["notify-send", "Recording stopped"]
 
 [profiles.spanish]
 model = "whisper-1"
@@ -63,16 +71,47 @@ language = "es"
 prompt = "El usuario es un programador escribiendo código. Espera términos técnicos de programación, nombres de funciones, variables en inglés mezclados con español."
 # Semantic VAD configuration for better context understanding
 vad_config = { SemanticVad = { eagerness = "medium" } }
-# Example command to type the transcribed text using xdotool
-# [profiles.coding-spanish.command]
-# type = "spawn_for_each"
+
+# Example hook to type the transcribed text using xdotool
+# [profiles.coding-spanish.hooks.on_transcription_receive]
+# type = "spawn_with_stdin"
 # command = ["xdotool", "type", "--file", "-"]
 
 [profiles.meeting]
 model = "whisper-1"
 language = "auto"
 prompt = "This is a business meeting with multiple speakers."
-# Example command to save transcriptions to a file
-# [profiles.meeting.command]
-# type = "spawn_for_each"
+
+# Example hooks for meeting transcription with notifications
+# [profiles.meeting.hooks.on_transcription_start]
+# type = "spawn"
+# command = ["sh", "-c", "echo 'Meeting started at $(date)' >> /tmp/meeting_log.txt"]
+
+# [profiles.meeting.hooks.on_transcription_receive]
+# type = "spawn_with_stdin"
 # command = ["tee", "-a", "/tmp/meeting_transcript.txt"]
+
+# [profiles.meeting.hooks.on_transcription_stop]
+# type = "spawn"
+# command = ["sh", "-c", "echo 'Meeting ended at $(date)' >> /tmp/meeting_log.txt"]
+
+# Complete example with all hooks configured
+[profiles.full-example]
+model = "whisper-1"
+language = "en"
+prompt = "General transcription with full lifecycle hooks"
+
+# Hook executed when transcription starts
+[profiles.full-example.hooks.on_transcription_start]
+type = "spawn"
+command = ["notify-send", "HotLine", "Recording started"]
+
+# Hook executed when transcription text is received
+[profiles.full-example.hooks.on_transcription_receive]
+type = "spawn_with_stdin"  # Text is piped to stdin
+command = ["wl-copy"]  # Copy to clipboard
+
+# Hook executed when transcription stops
+[profiles.full-example.hooks.on_transcription_stop]
+type = "spawn"
+command = ["notify-send", "HotLine", "Recording stopped"]

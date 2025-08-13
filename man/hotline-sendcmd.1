@@ -94,16 +94,26 @@ Command to execute with transcribed text (see COMMAND EXECUTION)
   }
 }
 .fi
-.SH COMMAND EXECUTION
-.SS Spawn command for each transcription:
+.SH LIFECYCLE HOOKS
+.SS Hook configuration:
 .nf
-"command": {
-  "type": "spawn_for_each",
-  "command": ["program", "arg1", "arg2"]
+"hooks": {
+  "on_transcription_start": {
+    "type": "spawn",
+    "command": ["notify-send", "Started"]
+  },
+  "on_transcription_receive": {
+    "type": "spawn_with_stdin",
+    "command": ["wl-copy"]
+  },
+  "on_transcription_stop": {
+    "type": "spawn",
+    "command": ["notify-send", "Stopped"]
+  }
 }
 .fi
 .PP
-The transcribed text is sent to the command's standard input.
+The on_transcription_receive hook receives transcribed text via stdin.
 .SH EXAMPLES
 .SS Start basic transcription:
 .nf
@@ -122,9 +132,11 @@ cat <<EOF | hotline sendcmd
         "eagerness": "medium"
       }
     },
-    "command": {
-      "type": "spawn_for_each",
-      "command": ["tee", "-a", "/tmp/transcript.txt"]
+    "hooks": {
+      "on_transcription_receive": {
+        "type": "spawn_with_stdin",
+        "command": ["tee", "-a", "/tmp/transcript.txt"]
+      }
     }
   }
 }
@@ -152,9 +164,11 @@ cat <<EOF | hotline sendcmd
   "StartTranscription": {
     "model": "$MODEL",
     "language": "$LANG",
-    "command": {
-      "type": "spawn_for_each",
-      "command": ["tee", "-a", "$OUTPUT"]
+    "hooks": {
+      "on_transcription_receive": {
+        "type": "spawn_with_stdin",
+        "command": ["tee", "-a", "$OUTPUT"]
+      }
     }
   }
 }

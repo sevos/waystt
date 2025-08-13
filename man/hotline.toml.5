@@ -91,36 +91,44 @@ Language code for transcription
 .B prompt = \fI"string"\fR
 Context prompt to guide transcription
 .TP
-.B command = \fItable\fR
-Command to execute with transcribed text (see COMMAND EXECUTION)
+.B hooks = \fItable\fR
+Lifecycle hooks for command execution (see LIFECYCLE HOOKS)
 .TP
 .B vad_config = \fItable\fR
 Voice Activity Detection configuration (see VAD CONFIGURATION)
-.SH COMMAND EXECUTION
-Commands are specified as TOML tables with the following format:
-.nf
-[profiles.example.command]
-type = "spawn_for_each"
-command = ["program", "arg1", "arg2"]
-.fi
-.PP
-The transcribed text is sent to the command's standard input.
+.SH LIFECYCLE HOOKS
+Hooks allow executing commands at different stages of the transcription lifecycle:
+.SS Hook Types:
+.TP
+.B on_transcription_start
+Executed when transcription begins
+.TP
+.B on_transcription_receive
+Executed when transcription text is received (text piped to stdin)
+.TP
+.B on_transcription_stop
+Executed when transcription ends
+.SS Command Types:
+.TP
+.B spawn
+Execute command without stdin (for start/stop hooks)
+.TP
+.B spawn_with_stdin
+Execute command with text piped to stdin (for receive hook)
 .SS Examples:
 .nf
-# Copy to clipboard
-[profiles.clipboard.command]
-type = "spawn_for_each"
+# Complete example with all hooks
+[profiles.example.hooks.on_transcription_start]
+type = "spawn"
+command = ["notify-send", "Recording started"]
+
+[profiles.example.hooks.on_transcription_receive]
+type = "spawn_with_stdin"
 command = ["wl-copy"]
 
-# Type with ydotool
-[profiles.typing.command]
-type = "spawn_for_each"
-command = ["ydotool", "type", "--file", "-"]
-
-# Append to file
-[profiles.logging.command]
-type = "spawn_for_each"
-command = ["tee", "-a", "/tmp/log.txt"]
+[profiles.example.hooks.on_transcription_stop]
+type = "spawn"
+command = ["notify-send", "Recording stopped"]
 .fi
 .SH VAD CONFIGURATION
 Voice Activity Detection can be configured in two modes:
@@ -177,8 +185,8 @@ model = "gpt-4o-mini-transcribe"
 language = "en"
 prompt = "The user is a programmer, expect technical terms."
 
-[profiles.coding.command]
-type = "spawn_for_each"
+[profiles.coding.hooks.on_transcription_receive]
+type = "spawn_with_stdin"
 command = ["wl-copy"]
 
 # Profile for Spanish coding with semantic VAD
@@ -194,9 +202,17 @@ model = "whisper-1"
 language = "auto"
 prompt = "Business meeting with multiple speakers."
 
-[profiles.meeting.command]
-type = "spawn_for_each"
+[profiles.meeting.hooks.on_transcription_start]
+type = "spawn"
+command = ["sh", "-c", "echo 'Meeting started at $(date)' >> /tmp/meeting_log.txt"]
+
+[profiles.meeting.hooks.on_transcription_receive]
+type = "spawn_with_stdin"
 command = ["tee", "-a", "/tmp/meeting_transcript.txt"]
+
+[profiles.meeting.hooks.on_transcription_stop]
+type = "spawn"
+command = ["sh", "-c", "echo 'Meeting ended at $(date)' >> /tmp/meeting_log.txt"]
 
 # Profile for medical dictation
 [profiles.medical]

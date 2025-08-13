@@ -188,9 +188,11 @@ echo '{
     "model": "gpt-4o-transcribe",
     "language": "en",
     "prompt": "Technical documentation",
-    "command": {
-      "type": "spawn_for_each",
-      "command": ["wl-copy"]
+    "hooks": {
+      "on_transcription_receive": {
+        "type": "spawn_with_stdin",
+        "command": ["wl-copy"]
+      }
     }
   }
 }' | hotline sendcmd
@@ -199,19 +201,39 @@ echo '{
 echo '{"StopTranscription": null}' | hotline sendcmd
 ```
 
-### Command Execution
+### Lifecycle Hooks
 
-Commands are configured using a tagged format that supports extensibility for future command types.
+HotLine supports hooks that execute commands at different stages of the transcription lifecycle:
 
-Currently supported:
-- **spawn_for_each**: Spawns command for each transcription, piping text to stdin
-  - Copying text to clipboard: `["wl-copy"]`
-  - Typing text directly: `["ydotool", "type", "--file", "-"]`
-  - Saving to a file: `["tee", "-a", "/tmp/transcript.txt"]`
+- **on_transcription_start**: Executed when transcription begins
+- **on_transcription_receive**: Executed when transcription text is received (text piped to stdin)
+- **on_transcription_stop**: Executed when transcription ends
 
-The tagged format allows future command types with different fields (e.g., `spawn_once`, `write_to_file`, `http_post`, etc.)
+Each hook supports different command types:
+- **spawn**: Execute command without stdin (for start/stop hooks)
+- **spawn_with_stdin**: Execute command with text piped to stdin (for receive hook)
 
-Configure commands in your profile or pass them in the JSON command.
+Example configuration with all hooks:
+```toml
+[profiles.example.hooks.on_transcription_start]
+type = "spawn"
+command = ["notify-send", "Recording started"]
+
+[profiles.example.hooks.on_transcription_receive]
+type = "spawn_with_stdin"
+command = ["wl-copy"]  # Copy to clipboard
+
+[profiles.example.hooks.on_transcription_stop]
+type = "spawn"
+command = ["notify-send", "Recording stopped"]
+```
+
+Common use cases:
+- Notifications when recording starts/stops
+- Copying text to clipboard
+- Typing text directly
+- Logging to files with timestamps
+- Triggering webhooks or external services
 
 ## Voice Activity Detection (VAD)
 
@@ -309,8 +331,8 @@ To type transcribed text directly into any application:
     model = "whisper-1"
     language = "en"
     
-    [profiles.typing.command]
-    type = "spawn_for_each"
+    [profiles.typing.hooks.on_transcription_receive]
+    type = "spawn_with_stdin"
     command = ["ydotool", "type", "--file", "-"]
     ```
 

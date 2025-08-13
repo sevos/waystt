@@ -13,7 +13,7 @@ pub struct TranscriptionProfile {
     pub model: Option<String>,
     pub language: Option<String>,
     pub prompt: Option<String>,
-    pub command: Option<crate::socket::CommandExecution>,
+    pub hooks: Option<crate::socket::Hooks>,
     pub vad_config: Option<crate::socket::VadConfig>,
 }
 

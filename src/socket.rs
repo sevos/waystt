@@ -16,32 +16,45 @@ pub struct StartTranscriptionArgs {
     // VAD parameters
     pub vad_config: Option<VadConfig>,
 
-    // Command execution
-    pub command: Option<CommandExecution>,
+    // Lifecycle hooks
+    pub hooks: Option<Hooks>,
+}
+
+/// Lifecycle hooks for executing commands at different stages of transcription
+///
+/// TOML format:
+/// ```toml
+/// [profiles.example.hooks.on_transcription_start]
+/// type = "spawn"
+/// command = ["notify-send", "Recording started"]
+///
+/// [profiles.example.hooks.on_transcription_receive]
+/// type = "spawn_with_stdin"
+/// command = ["wl-copy"]
+///
+/// [profiles.example.hooks.on_transcription_stop]
+/// type = "spawn"
+/// command = ["notify-send", "Recording stopped"]
+/// ```
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct Hooks {
+    /// Hook executed when transcription starts
+    pub on_transcription_start: Option<CommandExecution>,
+    /// Hook executed when transcription text is received (text piped to stdin)
+    pub on_transcription_receive: Option<CommandExecution>,
+    /// Hook executed when transcription stops
+    pub on_transcription_stop: Option<CommandExecution>,
 }
 
 /// Command execution configuration using tagged enum for extensibility.
 /// Each variant can have different fields specific to its execution strategy.
-///
-/// TOML format:
-/// ```toml
-/// [profiles.example.command]
-/// type = "spawn_for_each"
-/// command = ["program", "arg1"]
-/// ```
-///
-/// JSON format (for sendcmd):
-/// ```json
-/// {
-///   "type": "spawn_for_each",
-///   "command": ["program", "arg1"]
-/// }
-/// ```
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum CommandExecution {
-    /// Spawn command for each transcription, piping text to stdin
-    SpawnForEach { command: Vec<String> },
+    /// Spawn command without stdin (for start/stop hooks)
+    Spawn { command: Vec<String> },
+    /// Spawn command with text piped to stdin (for receive hook)
+    SpawnWithStdin { command: Vec<String> },
     // Future command types can be added here with different fields
     // e.g., SpawnOnce { command: Vec<String>, timeout: u64 },
     // e.g., WriteToFile { path: String, append: bool },

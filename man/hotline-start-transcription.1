@@ -45,8 +45,8 @@ model = "gpt-4o-mini-transcribe"
 language = "en"
 prompt = "The user is a programmer, expect technical terms."
 
-[profiles.coding.command]
-type = "spawn_for_each"
+[profiles.coding.hooks.on_transcription_receive]
+type = "spawn_with_stdin"
 command = ["wl-copy"]
 .fi
 .SS Spanish coding with semantic VAD:
@@ -64,8 +64,8 @@ model = "whisper-1"
 language = "auto"
 prompt = "Business meeting with multiple speakers."
 
-[profiles.meeting.command]
-type = "spawn_for_each"
+[profiles.meeting.hooks.on_transcription_receive]
+type = "spawn_with_stdin"
 command = ["tee", "-a", "/tmp/meeting.txt"]
 .fi
 .SH VOICE ACTIVITY DETECTION
@@ -84,25 +84,33 @@ vad_config = { SemanticVad = {
     eagerness = "medium"  # low, medium, or high
 } }
 .fi
-.SH COMMAND EXECUTION
-Profiles can specify commands to process transcribed text:
-.SS Copy to clipboard:
+.SH LIFECYCLE HOOKS
+Profiles can specify hooks to execute commands at different stages:
+.SS Copy to clipboard on receive:
 .nf
-[profiles.clipboard.command]
-type = "spawn_for_each"
+[profiles.clipboard.hooks.on_transcription_receive]
+type = "spawn_with_stdin"
 command = ["wl-copy"]
 .fi
 .SS Type directly via ydotool:
 .nf
-[profiles.typing.command]
-type = "spawn_for_each"
+[profiles.typing.hooks.on_transcription_receive]
+type = "spawn_with_stdin"
 command = ["ydotool", "type", "--file", "-"]
 .fi
-.SS Append to file:
+.SS Complete example with all hooks:
 .nf
-[profiles.logging.command]
-type = "spawn_for_each"
+[profiles.full.hooks.on_transcription_start]
+type = "spawn"
+command = ["notify-send", "Recording started"]
+
+[profiles.full.hooks.on_transcription_receive]
+type = "spawn_with_stdin"
 command = ["tee", "-a", "/tmp/transcript.txt"]
+
+[profiles.full.hooks.on_transcription_stop]
+type = "spawn"
+command = ["notify-send", "Recording stopped"]
 .fi
 .SH EXAMPLES
 .SS Basic usage:

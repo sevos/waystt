@@ -79,6 +79,7 @@ struct RealtimeState {
     is_recording: Arc<AtomicBool>,
     audio_sender: Arc<Mutex<Option<mpsc::Sender<Vec<u8>>>>>,
     ws_task: Arc<Mutex<Option<tokio::task::JoinHandle<()>>>>,
+    current_hooks: Arc<Mutex<Option<socket::Hooks>>>,
 }
 
 impl RealtimeState {
@@ -87,6 +88,7 @@ impl RealtimeState {
             is_recording: Arc::new(AtomicBool::new(false)),
             audio_sender: Arc::new(Mutex::new(None)),
             ws_task: Arc::new(Mutex::new(None)),
+            current_hooks: Arc::new(Mutex::new(None)),
         }
     }
 }
@@ -178,7 +180,7 @@ async fn run_start_transcription(profile_name: String) -> Result<()> {
         language: profile.language.clone(),
         prompt: profile.prompt.clone(),
         vad_config: profile.vad_config.clone(),
-        command: profile.command.clone(),
+        hooks: profile.hooks.clone(),
     });
 
     // Send command to daemon
@@ -275,15 +277,39 @@ fn handle_command(
                 }
             });
 
-            // Extract command execution settings from args
-            let command_exec = args.command.clone();
+            // Extract hooks from args
+            let hooks = args.hooks.clone();
+
+            // Store hooks in state for use in stop command (will be done in the async block)
+            let state_for_hooks = state.clone();
 
             // Start transcription session asynchronously
             let state_clone = state.clone();
             let beep_player_clone = beep_player.clone();
             tokio::spawn(async move {
+                // Store hooks in state for use in stop command
+                *state_for_hooks.current_hooks.lock().await = hooks.clone();
+
                 // Play start beep
                 let _ = beep_player_clone.play_async(BeepType::RecordingStart).await;
+
+                // Execute on_transcription_start hook
+                if let Some(ref hooks) = hooks {
+                    if let Some(ref start_hook) = hooks.on_transcription_start {
+                        match start_hook {
+                            socket::CommandExecution::Spawn { command }
+                            | socket::CommandExecution::SpawnWithStdin { command } => {
+                                // For start hook, we don't pipe any input
+                                if let Err(e) = command::execute_with_input(command, "").await {
+                                    eprintln!(
+                                        "Failed to execute on_transcription_start hook: {}",
+                                        e
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
 
                 match transcriber.start_session(language).await {
                     Ok((audio_tx, mut transcript_rx, ws_task)) => {
@@ -304,27 +330,32 @@ fn handle_command(
                                                 transcript
                                             );
 
-                                            // Execute command if specified
-                                            match &command_exec {
-                                                Some(socket::CommandExecution::SpawnForEach {
-                                                    command,
-                                                }) => {
-                                                    if let Err(e) = command::execute_with_input(
-                                                        command,
-                                                        &transcript,
-                                                    )
-                                                    .await
-                                                    {
-                                                        eprintln!(
-                                                            "Failed to execute command: {}",
-                                                            e
-                                                        );
+                                            // Execute on_transcription_receive hook or print to stdout
+                                            if let Some(ref hooks) = hooks {
+                                                if let Some(ref receive_hook) =
+                                                    hooks.on_transcription_receive
+                                                {
+                                                    match receive_hook {
+                                                        socket::CommandExecution::SpawnWithStdin { command } => {
+                                                            if let Err(e) = command::execute_with_input(command, &transcript).await {
+                                                                eprintln!("Failed to execute on_transcription_receive hook: {}", e);
+                                                            }
+                                                        }
+                                                        socket::CommandExecution::Spawn { command } => {
+                                                            // For receive hook with Spawn type, we still pass the transcript via stdin
+                                                            // This allows flexibility in command configuration
+                                                            if let Err(e) = command::execute_with_input(command, &transcript).await {
+                                                                eprintln!("Failed to execute on_transcription_receive hook: {}", e);
+                                                            }
+                                                        }
                                                     }
-                                                }
-                                                None => {
-                                                    // Just print to stdout if no command specified
+                                                } else {
+                                                    // No receive hook, print to stdout
                                                     println!("{}", transcript);
                                                 }
+                                            } else {
+                                                // No hooks at all, print to stdout
+                                                println!("{}", transcript);
                                             }
                                         }
                                     }
@@ -382,6 +413,28 @@ fn handle_command(
                 if let Some(task) = state_clone.ws_task.lock().await.take() {
                     task.abort();
                 }
+
+                // Execute on_transcription_stop hook
+                let hooks = state_clone.current_hooks.lock().await.clone();
+                if let Some(hooks) = hooks {
+                    if let Some(stop_hook) = hooks.on_transcription_stop {
+                        match stop_hook {
+                            socket::CommandExecution::Spawn { command }
+                            | socket::CommandExecution::SpawnWithStdin { command } => {
+                                // For stop hook, we don't pipe any input
+                                if let Err(e) = command::execute_with_input(&command, "").await {
+                                    eprintln!(
+                                        "Failed to execute on_transcription_stop hook: {}",
+                                        e
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Clear hooks from state
+                *state_clone.current_hooks.lock().await = None;
 
                 eprintln!("Audio streaming stopped");
             });

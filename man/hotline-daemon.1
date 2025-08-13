@@ -105,28 +105,6 @@ hotline daemon &
 # Start with custom config
 hotline daemon --envfile ~/my-config/.env
 .fi
-.SS Systemd service (user):
-Create ~/.config/systemd/user/hotline.service:
-.nf
-[Unit]
-Description=HotLine Speech-to-Text Daemon
-After=graphical-session.target
-
-[Service]
-Type=simple
-ExecStart=/usr/local/bin/hotline daemon
-Restart=on-failure
-RestartSec=5
-
-[Install]
-WantedBy=default.target
-.fi
-.PP
-Then enable and start:
-.nf
-systemctl --user enable hotline.service
-systemctl --user start hotline.service
-.fi
 .SH TROUBLESHOOTING
 .SS Daemon won't start:
 .IP \(bu 2

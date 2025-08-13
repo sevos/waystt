@@ -25,34 +25,10 @@
           type = lib.types.submodule {
             freeformType = lib.types.attrsOf lib.types.str;
             options = {
-              TRANSCRIPTION_PROVIDER = lib.mkOption {
-                type = lib.types.enum [ "openai" "google" "google_v2" "google_v2_rest" ];
-                default = "openai";
-                description = "The transcription provider to use.";
-              };
-
               OPENAI_API_KEY = lib.mkOption {
                 type = lib.types.nullOr lib.types.str;
                 default = null;
                 description = "OpenAI API key for Whisper transcription.";
-              };
-
-              GOOGLE_APPLICATION_CREDENTIALS = lib.mkOption {
-                type = lib.types.nullOr lib.types.path;
-                default = null;
-                description = "Path to Google Cloud credentials JSON file.";
-              };
-
-              GOOGLE_PROJECT_ID = lib.mkOption {
-                type = lib.types.nullOr lib.types.str;
-                default = null;
-                description = "Google Cloud project ID.";
-              };
-
-              GOOGLE_RECOGNIZER_ID = lib.mkOption {
-                type = lib.types.nullOr lib.types.str;
-                default = null;
-                description = "Google Cloud recognizer ID.";
               };
 
               ENABLE_AUDIO_FEEDBACK = lib.mkOption {

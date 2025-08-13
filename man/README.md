@@ -15,30 +15,6 @@ This directory contains the manual pages for the HotLine speech-to-text tool.
 ### Section 5 - File Formats
 - `hotline.toml.5` - Configuration file format
 
-## Installation
-
-To install these man pages system-wide:
-
-```bash
-# As root or with sudo
-sudo mkdir -p /usr/local/share/man/man1
-sudo mkdir -p /usr/local/share/man/man5
-sudo cp man/*.1 /usr/local/share/man/man1/
-sudo cp man/*.5 /usr/local/share/man/man5/
-sudo mandb  # Update man database
-```
-
-For user-specific installation:
-
-```bash
-mkdir -p ~/.local/share/man/man1
-mkdir -p ~/.local/share/man/man5
-cp man/*.1 ~/.local/share/man/man1/
-cp man/*.5 ~/.local/share/man/man5/
-
-# Add to your shell configuration (.bashrc, .zshrc, etc.):
-export MANPATH="$HOME/.local/share/man:$MANPATH"
-```
 
 ## Viewing Man Pages
 

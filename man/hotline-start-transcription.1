@@ -55,7 +55,9 @@ command = ["wl-copy"]
 model = "gpt-4o-mini-transcribe"
 language = "es"
 prompt = "El usuario es un programador escribiendo código."
-vad_config = { SemanticVad = { eagerness = "medium" } }
+
+[profiles.coding-spanish.vad_config.SemanticVad]
+eagerness = "medium"
 .fi
 .SS Meeting transcription:
 .nf
@@ -72,17 +74,15 @@ command = ["tee", "-a", "/tmp/meeting.txt"]
 Two VAD modes are available:
 .SS Server VAD (traditional):
 .nf
-vad_config = { ServerVad = {
-    threshold = 0.5,
-    prefix_padding_ms = 300,
-    silence_duration_ms = 500
-} }
+[profiles.example.vad_config.ServerVad]
+threshold = 0.5
+prefix_padding_ms = 300
+silence_duration_ms = 500
 .fi
 .SS Semantic VAD (AI-powered):
 .nf
-vad_config = { SemanticVad = {
-    eagerness = "medium"  # low, medium, or high
-} }
+[profiles.example.vad_config.SemanticVad]
+eagerness = "medium"  # low, medium, or high
 .fi
 .SH LIFECYCLE HOOKS
 Profiles can specify hooks to execute commands at different stages:

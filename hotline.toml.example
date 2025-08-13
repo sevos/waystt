@@ -69,8 +69,10 @@ prompt = "El usuario habla español."
 model = "gpt-4o-mini-transcribe"  # Using GPT-4o mini transcribe instead of whisper
 language = "es"
 prompt = "El usuario es un programador escribiendo código. Espera términos técnicos de programación, nombres de funciones, variables en inglés mezclados con español."
+
 # Semantic VAD configuration for better context understanding
-vad_config = { SemanticVad = { eagerness = "medium" } }
+[profiles.coding-spanish.vad_config.SemanticVad]
+eagerness = "medium"
 
 # Example hook to type the transcribed text using xdotool
 # [profiles.coding-spanish.hooks.on_transcription_receive]

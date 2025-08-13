@@ -17,17 +17,7 @@
         types
         ;
 
-      transformVadConfig = vadConfig:
-        if vadConfig == null then null
-        else if vadConfig.semantic != null then { SemanticVad = vadConfig.semantic; }
-        else if vadConfig.server != null then { ServerVad = vadConfig.server; }
-        else null;
-
-      finalSettings = cfg.settings // {
-        profiles = lib.mapAttrs (_: profile: profile // {
-          vad_config = transformVadConfig profile.vad_config;
-        }) cfg.settings.profiles;
-      };
+      finalSettings = cfg.settings;
     in
     {
       options.programs.hotline = {
@@ -60,7 +50,7 @@
 
             vadConfigType = types.submodule {
               options = {
-                server = mkOption {
+                ServerVad = mkOption {
                   type = types.nullOr (types.submodule {
                     options = {
                       threshold = mkOption {
@@ -80,7 +70,7 @@
                   default = null;
                   description = "Configuration for server-side Voice Activity Detection (VAD).";
                 };
-                semantic = mkOption {
+                SemanticVad = mkOption {
                   type = types.nullOr (types.submodule {
                     options = {
                       eagerness = mkOption {

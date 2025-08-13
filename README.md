@@ -70,7 +70,9 @@ prompt = "The user is a programmer, so expect technical terms."
 model = "gpt-4o-mini-transcribe"
 language = "es"
 prompt = "El usuario es un programador escribiendo código. Espera términos técnicos de programación, nombres de funciones, variables en inglés mezclados con español."
-vad_config = { SemanticVad = { eagerness = "medium" } }
+
+[profiles.coding-spanish.vad_config.SemanticVad]
+eagerness = "medium"
 
 [profiles.meeting]
 model = "whisper-1"
@@ -210,29 +212,19 @@ Common use cases:
 HotLine supports two VAD modes:
 
 ### Server VAD (Default)
-Traditional threshold-based voice detection:
-```json
-{
-  "vad_config": {
-    "ServerVad": {
-      "threshold": 0.5,
-      "prefix_padding_ms": 300,
-      "silence_duration_ms": 500
-    }
-  }
-}
+Traditional threshold-based voice detection (TOML configuration):
+```toml
+[profiles.example.vad_config.ServerVad]
+threshold = 0.5
+prefix_padding_ms = 300
+silence_duration_ms = 500
 ```
 
 ### Semantic VAD
-AI-powered context-aware voice detection:
-```json
-{
-  "vad_config": {
-    "SemanticVad": {
-      "eagerness": "medium"  // Options: "low", "medium", "high"
-    }
-  }
-}
+AI-powered context-aware voice detection (TOML configuration):
+```toml
+[profiles.example.vad_config.SemanticVad]
+eagerness = "medium"  # Options: "low", "medium", "high"
 ```
 
 ## Keybinding Examples

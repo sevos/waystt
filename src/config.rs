@@ -26,6 +26,8 @@ pub struct Config {
     pub google_speech_language_code: String,
     pub google_speech_model: String,
     pub google_speech_alternative_languages: Vec<String>,
+    // Local Whisper configuration
+    pub local_model_path: Option<String>,
 }
 
 impl Default for Config {
@@ -49,6 +51,8 @@ impl Default for Config {
             google_speech_language_code: "en-US".to_string(),
             google_speech_model: "latest_long".to_string(),
             google_speech_alternative_languages: vec![],
+            // Local Whisper defaults
+            local_model_path: None,
         }
     }
 }
@@ -146,6 +150,9 @@ impl Config {
                 .collect();
         }
 
+        // Load Local Whisper configuration
+        config.local_model_path = std::env::var("LOCAL_MODEL_PATH").ok();
+
         config
     }
 
@@ -173,9 +180,16 @@ impl Config {
                     ));
                 }
             }
+            "local" => {
+                if self.local_model_path.is_none() {
+                    return Err(anyhow::anyhow!(
+                        "LOCAL_MODEL_PATH is required when using local provider. Please set it to the path of your Whisper model file."
+                    ));
+                }
+            }
             _ => {
                 return Err(anyhow::anyhow!(
-                    "Unsupported transcription provider: {}. Supported providers: openai, google",
+                    "Unsupported transcription provider: {}. Supported providers: openai, google, local",
                     self.transcription_provider
                 ));
             }
@@ -238,6 +252,7 @@ mod tests {
         env::remove_var("GOOGLE_SPEECH_LANGUAGE_CODE");
         env::remove_var("GOOGLE_SPEECH_MODEL");
         env::remove_var("GOOGLE_SPEECH_ALTERNATIVE_LANGUAGES");
+        env::remove_var("LOCAL_MODEL_PATH");
     }
 
     #[test]
@@ -259,6 +274,8 @@ mod tests {
         assert_eq!(config.google_speech_language_code, "en-US");
         assert_eq!(config.google_speech_model, "latest_long");
         assert!(config.google_speech_alternative_languages.is_empty());
+        // Local defaults
+        assert_eq!(config.local_model_path, None);
     }
 
     #[tokio::test]
@@ -704,5 +721,51 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("Unsupported transcription provider: azure"));
+    }
+
+    #[tokio::test]
+    async fn test_local_provider_configuration() {
+        #[allow(clippy::await_holding_lock)]
+        {
+            let _lock = ENV_MUTEX.lock().await;
+            clear_env_vars();
+
+            // Test local provider with model path
+            env::set_var("TRANSCRIPTION_PROVIDER", "local");
+            env::set_var("LOCAL_MODEL_PATH", "/path/to/model.bin");
+
+            let config = Config::from_env();
+            assert_eq!(config.transcription_provider, "local");
+            assert_eq!(
+                config.local_model_path,
+                Some("/path/to/model.bin".to_string())
+            );
+
+            clear_env_vars();
+        }
+    }
+
+    #[test]
+    fn test_config_validation_local_missing_model_path() {
+        let config = Config {
+            transcription_provider: "local".to_string(),
+            local_model_path: None,
+            ..Default::default()
+        };
+
+        let result = config.validate();
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("LOCAL_MODEL_PATH"));
+    }
+
+    #[test]
+    fn test_config_validation_local_success() {
+        let config = Config {
+            transcription_provider: "local".to_string(),
+            local_model_path: Some("/path/to/model.bin".to_string()),
+            ..Default::default()
+        };
+
+        assert!(config.validate().is_ok());
     }
 }

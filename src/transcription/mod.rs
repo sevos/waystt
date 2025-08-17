@@ -1,12 +1,15 @@
 use async_trait::async_trait;
 use std::fmt;
 use std::fmt::Write;
+use std::path::Path;
 
 pub mod openai;
 // Secure Google provider using google-api-proto
 pub mod google_v2;
 // Google provider using REST API
 pub mod google_v2_rest;
+// Local provider using whisper-rs
+pub mod local;
 
 #[derive(Debug)]
 pub struct ApiErrorDetails {
@@ -134,6 +137,21 @@ impl TranscriptionFactory {
                 )
                 .await?;
 
+                Ok(Box::new(client))
+            }
+            "local" => {
+                let config = crate::config::load_config();
+                let model_path = config.local_model_path.ok_or_else(|| {
+                    TranscriptionError::ConfigurationError("Local model path not found".to_string())
+                })?;
+
+                let language = if config.whisper_language == "auto" {
+                    None
+                } else {
+                    Some(config.whisper_language)
+                };
+
+                let client = local::LocalProvider::new(Path::new(&model_path), language)?;
                 Ok(Box::new(client))
             }
             _ => Err(TranscriptionError::UnsupportedProvider(
@@ -364,6 +382,35 @@ mod tests {
                 std::env::set_var("TRANSCRIPTION_PROVIDER", provider);
             } else {
                 std::env::remove_var("TRANSCRIPTION_PROVIDER");
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_factory_local_provider_missing_model_path() {
+        #[allow(clippy::await_holding_lock)]
+        {
+            let _lock = ENV_MUTEX.lock().await;
+
+            // Save current state and set up test environment
+            let original_model_path = std::env::var("LOCAL_MODEL_PATH").ok();
+            std::env::remove_var("LOCAL_MODEL_PATH");
+
+            let result = TranscriptionFactory::create_provider("local").await;
+
+            // Restore original state
+            if let Some(path) = original_model_path {
+                std::env::set_var("LOCAL_MODEL_PATH", path);
+            } else {
+                std::env::remove_var("LOCAL_MODEL_PATH");
+            }
+
+            assert!(result.is_err());
+
+            if let Err(TranscriptionError::ConfigurationError(msg)) = result {
+                assert!(msg.contains("Local model path not found"));
+            } else {
+                panic!("Expected ConfigurationError for missing model path");
             }
         }
     }

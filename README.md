@@ -13,7 +13,7 @@ Press a keybind, speak, and get instant text output. A speech-to-text tool that 
 ## Requirements
 
 - **Wayland desktop** (Hyprland, Niri, GNOME, KDE, etc.)
-- **OpenAI API key** (for Whisper transcription)
+- **OpenAI API key** (for Whisper transcription) OR **Local Whisper model** OR **Google Cloud credentials**
 - **System packages**:
 
 ```bash
@@ -78,12 +78,38 @@ export PATH="$HOME/.local/bin:$PATH"
 
 ## Quick Start
 
-1. **Setup configuration:**
-```bash
-# Create config directory and file
-mkdir -p ~/.config/waystt
-echo "OPENAI_API_KEY=your_api_key_here" > ~/.config/waystt/.env
-```
+1. **Setup configuration (choose one provider):**
+
+   **Option A: OpenAI Whisper (default)**
+   ```bash
+   # Create config directory and file
+   mkdir -p ~/.config/waystt
+   echo "OPENAI_API_KEY=your_api_key_here" > ~/.config/waystt/.env
+   ```
+   
+   **Option B: Local Whisper (offline)**
+   ```bash
+   # Download a model and configure
+   mkdir -p ~/.local/share/waystt/models ~/.config/waystt
+   cd ~/.local/share/waystt/models
+   wget https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin
+   
+   # Create config
+   cat > ~/.config/waystt/.env << EOF
+   TRANSCRIPTION_PROVIDER=local
+   LOCAL_MODEL_PATH=$HOME/.local/share/waystt/models/ggml-base.bin
+   EOF
+   ```
+   
+   **Option C: Google Speech-to-Text**
+   ```bash
+   # After setting up Google Cloud (see Configuration section)
+   mkdir -p ~/.config/waystt
+   cat > ~/.config/waystt/.env << EOF
+   TRANSCRIPTION_PROVIDER=google
+   GOOGLE_APPLICATION_CREDENTIALS=/path/to/your/service-account-key.json
+   EOF
+   ```
 
 2. **Test the application:**
 ```bash
@@ -201,7 +227,7 @@ Configuration is read from `~/.config/waystt/.env` by default. You can override 
 waystt --envfile /path/to/custom/.env
 ```
 
-waystt supports two transcription providers: **OpenAI Whisper** (default) and **Google Speech-to-Text**. Choose the one that best fits your needs.
+waystt supports three transcription providers: **OpenAI Whisper** (default), **Local Whisper**, and **Google Speech-to-Text**. Choose the one that best fits your needs.
 
 ### OpenAI Whisper (Default)
 
@@ -227,6 +253,70 @@ WHISPER_TIMEOUT_SECONDS=60
 # Max retry attempts
 WHISPER_MAX_RETRIES=3
 ```
+
+### Local Whisper (Offline)
+
+Local Whisper runs entirely offline using local Whisper models, providing privacy and independence from external APIs.
+
+**Benefits:**
+- **Complete privacy** - No data sent to external services
+- **No API costs** - Free to use once model is downloaded
+- **Works offline** - No internet connection required
+- **Fast processing** - Depends on your hardware
+
+**Setup Steps:**
+
+1. **Download a Whisper model:**
+   
+   Models are available from [Hugging Face](https://huggingface.co/ggerganov/whisper.cpp/tree/main):
+
+   ```bash
+   # Create models directory
+   mkdir -p ~/.local/share/waystt/models
+   cd ~/.local/share/waystt/models
+   
+   # Download a model (choose one based on your needs):
+   
+   # Tiny model (39 MB) - Fastest, basic accuracy
+   wget https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin
+   
+   # Base model (142 MB) - Good balance of speed and accuracy  
+   wget https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin
+   
+   # Small model (244 MB) - Better accuracy, slower than base
+   wget https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin
+   
+   # Medium model (769 MB) - Even better accuracy
+   wget https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.bin
+   
+   # Large model (1550 MB) - Best accuracy, slowest processing
+   wget https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3.bin
+   ```
+
+2. **Configure waystt for local processing:**
+
+   ```bash
+   # Switch to local provider
+   TRANSCRIPTION_PROVIDER=local
+   
+   # Path to your downloaded model file
+   LOCAL_MODEL_PATH=/home/username/.local/share/waystt/models/ggml-base.bin
+   
+   # Language setting (optional, default: auto-detect)
+   WHISPER_LANGUAGE=en
+   ```
+
+**Model Selection Guide:**
+- **ggml-tiny.bin** - Ultra-fast, suitable for simple commands and phrases
+- **ggml-base.bin** - **Recommended for most users** - Good balance of speed and accuracy
+- **ggml-small.bin** - Better accuracy for longer sentences
+- **ggml-medium.bin** - High accuracy for complex speech
+- **ggml-large-v3.bin** - Best accuracy for challenging audio conditions
+
+**Hardware Requirements:**
+- **RAM**: 1-4 GB depending on model size
+- **CPU**: Modern multi-core processor recommended for faster processing
+- **Storage**: 39 MB to 1.5 GB for model files
 
 ### Google Speech-to-Text
 
@@ -307,6 +397,13 @@ If audio recording fails:
 - Verify your Google Cloud project has billing enabled
 - Review logs for specific error messages
 
+**Local Provider:**
+- Verify your model file path is correct: `ls -la /path/to/your/model.bin`
+- Ensure the model file is downloaded completely (check file size)
+- Check available RAM - larger models require more memory
+- Review logs for specific error messages
+- Try a smaller model if you encounter memory issues
+
 ## Development
 
 ### Running Tests
@@ -327,9 +424,40 @@ RUST_LOG=debug cargo run -- --envfile .env
 
 ## Building from Source
 
+### Using Nix (Recommended)
+
+If you have Nix installed, the project includes a development shell with all dependencies:
+
 ```bash
 git clone https://github.com/sevos/waystt.git
 cd waystt
+
+# Enter development environment with all dependencies
+nix-shell
+
+# Create config directory and copy example configuration
+mkdir -p ~/.config/waystt
+cp .env.example ~/.config/waystt/.env
+# Edit ~/.config/waystt/.env with your API key
+
+# Build and test
+cargo build --release
+cargo test
+
+# Install to local bin
+mkdir -p ~/.local/bin
+cp ./target/release/waystt ~/.local/bin/
+```
+
+### Traditional Build
+
+```bash
+git clone https://github.com/sevos/waystt.git
+cd waystt
+
+# Install build dependencies (example for Ubuntu/Debian)
+sudo apt update
+sudo apt install build-essential pkg-config libssl-dev libasound2-dev cmake clang
 
 # Create config directory and copy example configuration
 mkdir -p ~/.config/waystt

@@ -178,6 +178,9 @@ impl TranscriptionProvider for GoogleV2RestProvider {
         audio_data: Vec<u8>,
         language: Option<String>,
     ) -> Result<String, TranscriptionError> {
+        // Google Cloud Speech has a 10MB limit for synchronous recognition
+        const MAX_FILE_SIZE: usize = 10 * 1024 * 1024;
+
         if audio_data.is_empty() {
             return Err(TranscriptionError::ApiError(
                 crate::transcription::ApiErrorDetails {
@@ -190,8 +193,6 @@ impl TranscriptionProvider for GoogleV2RestProvider {
             ));
         }
 
-        // Google Cloud Speech has a 10MB limit for synchronous recognition
-        const MAX_FILE_SIZE: usize = 10 * 1024 * 1024;
         if audio_data.len() > MAX_FILE_SIZE {
             return Err(TranscriptionError::FileTooLarge(audio_data.len()));
         }

@@ -7,8 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2025-08-29
+
 ### Added
 - Local Whisper (whisper-rs) provider with model download flag and local model storage
+
+### Changed
+- Updated documentation with latest features and usage examples
 
 ## [0.2.3] - 2025-06-30
 

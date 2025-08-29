@@ -21,6 +21,10 @@ dirs = "5.0"
 # Audio capture
 cpal = "0.15"
 
+# Local transcription
+whisper-rs = "0.15"
+hound = "3.5"
+
 
 # JSON parsing for API responses
 serde_json = "1.0"

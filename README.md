@@ -265,7 +265,7 @@ GOOGLE_SPEECH_ALTERNATIVE_LANGUAGES=es-ES,fr-FR,de-DE
 
 ### Local Whisper (whisper-rs)
 
-Run transcription locally without sending audio to external APIs.
+Run transcription locally without sending audio to external APIs. Models are downloaded from [Hugging Face](https://huggingface.co/ggerganov/whisper.cpp) in GGML format.
 
 ```bash
 # Switch to local provider
@@ -277,6 +277,26 @@ WHISPER_MODEL=ggml-base.en.bin
 # Download the model and exit
 waystt --download-model
 ```
+
+**Available Models (GGML format):**
+- `ggml-tiny.bin` - Fastest, least accurate (39 MB)
+- `ggml-tiny.en.bin` - English-only tiny model (39 MB)
+- `ggml-base.bin` - Small size, good performance (142 MB)
+- `ggml-base.en.bin` - English-only base model (142 MB)
+- `ggml-small.bin` - Better accuracy than base (466 MB)
+- `ggml-small.en.bin` - English-only small model (466 MB)
+- `ggml-medium.bin` - Good accuracy/speed balance (1.5 GB)
+- `ggml-medium.en.bin` - English-only medium model (1.5 GB)
+- `ggml-large.bin` - Best accuracy, slower (2.9 GB)
+- `ggml-large-v1.bin` - Large model v1 (2.9 GB)
+- `ggml-large-v2.bin` - Large model v2 (2.9 GB)
+- `ggml-large-v3.bin` - Latest large model (2.9 GB)
+
+**Recommendations:**
+- **For English only**: Use `.en.bin` models for better performance
+- **For speed**: `ggml-tiny.en.bin` or `ggml-base.en.bin`
+- **For accuracy**: `ggml-large-v3.bin` or `ggml-medium.en.bin`
+- **For balance**: `ggml-base.en.bin` (default)
 
 If the configured model is missing, the application will exit with an error. OpenAI remains the default provider.
 

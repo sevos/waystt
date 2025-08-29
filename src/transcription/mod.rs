@@ -123,7 +123,7 @@ impl TranscriptionFactory {
             "local" => {
                 let config = crate::config::load_config();
                 let model_path = crate::config::Config::model_path(&config.whisper_model);
-                let provider = local::LocalWhisperProvider::new(model_path)?;
+                let provider = local::LocalWhisperProvider::new(&model_path)?;
                 Ok(Box::new(provider))
             }
             "google" => {

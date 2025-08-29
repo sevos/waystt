@@ -1,7 +1,7 @@
 use super::{ApiErrorDetails, TranscriptionError, TranscriptionProvider};
 use async_trait::async_trait;
 use hound;
-use std::path::PathBuf;
+use std::path::Path;
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
 pub struct LocalWhisperProvider {
@@ -9,7 +9,7 @@ pub struct LocalWhisperProvider {
 }
 
 impl LocalWhisperProvider {
-    pub fn new(model_path: PathBuf) -> Result<Self, TranscriptionError> {
+    pub fn new(model_path: &Path) -> Result<Self, TranscriptionError> {
         if !model_path.exists() {
             return Err(TranscriptionError::ConfigurationError(format!(
                 "Model file not found: {}",
@@ -43,7 +43,7 @@ impl TranscriptionProvider for LocalWhisperProvider {
         })?;
         let samples: Result<Vec<f32>, _> = reader
             .into_samples::<i16>()
-            .map(|s| s.map(|v| v as f32 / i16::MAX as f32))
+            .map(|s| s.map(|v| f32::from(v) / f32::from(i16::MAX)))
             .collect();
         let samples = samples.map_err(|e| {
             TranscriptionError::ConfigurationError(format!("Failed to parse WAV samples: {}", e))

@@ -155,8 +155,8 @@ impl TranscriptionProvider for GoogleV2Provider {
         }
 
         // Google Cloud Speech has a 10MB limit for synchronous recognition
-        const MAX_FILE_SIZE: usize = 10 * 1024 * 1024;
-        if audio_data.len() > MAX_FILE_SIZE {
+        let max_file_size = 10 * 1024 * 1024;
+        if audio_data.len() > max_file_size {
             return Err(TranscriptionError::FileTooLarge(audio_data.len()));
         }
 

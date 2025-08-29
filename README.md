@@ -271,7 +271,7 @@ Run transcription locally without sending audio to external APIs.
 # Switch to local provider
 TRANSCRIPTION_PROVIDER=local
 
-# Model file name stored in ~/.local/shared/applications/waystt/models/
+# Model file name stored in ~/.local/share/applications/waystt/models/
 WHISPER_MODEL=ggml-base.en.bin
 
 # Download the model and exit

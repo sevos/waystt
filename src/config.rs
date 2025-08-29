@@ -58,7 +58,7 @@ impl Config {
     pub fn model_dir() -> PathBuf {
         dirs::home_dir()
             .unwrap_or_else(|| PathBuf::from("."))
-            .join(".local/shared/applications/waystt/models")
+            .join(".local/share/applications/waystt/models")
     }
 
     /// Full path to a model file in the model directory

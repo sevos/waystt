@@ -7,6 +7,8 @@ pub mod openai;
 pub mod google_v2;
 // Google provider using REST API
 pub mod google_v2_rest;
+// Local whisper provider using whisper-rs
+pub mod local;
 
 #[derive(Debug)]
 pub struct ApiErrorDetails {
@@ -117,6 +119,12 @@ impl TranscriptionFactory {
                 )?;
 
                 Ok(Box::new(client))
+            }
+            "local" => {
+                let config = crate::config::load_config();
+                let model_path = crate::config::Config::model_path(&config.whisper_model);
+                let provider = local::LocalWhisperProvider::new(&model_path)?;
+                Ok(Box::new(provider))
             }
             "google" => {
                 let config = crate::config::load_config();
@@ -330,6 +338,20 @@ mod tests {
             } else {
                 std::env::remove_var("OPENAI_API_KEY");
             }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_factory_local_provider_missing_model() {
+        #[allow(clippy::await_holding_lock)]
+        {
+            let _lock = ENV_MUTEX.lock().await;
+            let tmp_home = tempfile::tempdir().unwrap();
+            std::env::set_var("HOME", tmp_home.path());
+            std::env::set_var("WHISPER_MODEL", "missing.bin");
+
+            let result = TranscriptionFactory::create_provider("local").await;
+            assert!(result.is_err());
         }
     }
 

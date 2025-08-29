@@ -3,7 +3,7 @@
 #![allow(clippy::cast_sign_loss)]
 
 use anyhow::Result;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// Configuration for waystt loaded from environment variables
 #[derive(Debug, Clone)]
@@ -54,6 +54,18 @@ impl Default for Config {
 }
 
 impl Config {
+    /// Directory where local whisper models are stored
+    pub fn model_dir() -> PathBuf {
+        dirs::home_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join(".local/share/applications/waystt/models")
+    }
+
+    /// Full path to a model file in the model directory
+    pub fn model_path(model: &str) -> PathBuf {
+        Self::model_dir().join(model)
+    }
+
     /// Load configuration from environment variables
     #[allow(clippy::field_reassign_with_default)]
     pub fn from_env() -> Self {
@@ -166,6 +178,15 @@ impl Config {
                     ));
                 }
             }
+            "local" => {
+                let model_path = Config::model_path(&self.whisper_model);
+                if !model_path.exists() {
+                    return Err(anyhow::anyhow!(
+                        "Local model not found at {}. Use --download-model to fetch it.",
+                        model_path.display()
+                    ));
+                }
+            }
             "google" => {
                 if self.google_application_credentials.is_none() {
                     return Err(anyhow::anyhow!(
@@ -175,7 +196,7 @@ impl Config {
             }
             _ => {
                 return Err(anyhow::anyhow!(
-                    "Unsupported transcription provider: {}. Supported providers: openai, google",
+                    "Unsupported transcription provider: {}. Supported providers: openai, google, local",
                     self.transcription_provider
                 ));
             }
@@ -704,5 +725,42 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("Unsupported transcription provider: azure"));
+    }
+
+    #[tokio::test]
+    async fn test_config_validation_local_missing_model() {
+        use crate::test_utils::ENV_MUTEX;
+        let _lock = ENV_MUTEX.lock().await;
+        let tmp_home = tempfile::tempdir().unwrap();
+        std::env::set_var("HOME", tmp_home.path());
+
+        let config = Config {
+            transcription_provider: "local".to_string(),
+            whisper_model: "missing.bin".to_string(),
+            ..Default::default()
+        };
+
+        let result = config.validate();
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_config_validation_local_success() {
+        use crate::test_utils::ENV_MUTEX;
+        let _lock = ENV_MUTEX.lock().await;
+        let tmp_home = tempfile::tempdir().unwrap();
+        std::env::set_var("HOME", tmp_home.path());
+
+        let model_path = Config::model_path("dummy.bin");
+        std::fs::create_dir_all(model_path.parent().unwrap()).unwrap();
+        std::fs::write(&model_path, b"test").unwrap();
+
+        let config = Config {
+            transcription_provider: "local".to_string(),
+            whisper_model: "dummy.bin".to_string(),
+            ..Default::default()
+        };
+
+        assert!(config.validate().is_ok());
     }
 }

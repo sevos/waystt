@@ -10,7 +10,7 @@
 #![allow(clippy::single_match_else)]
 #![allow(clippy::match_bool)]
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use clap::Parser;
 use std::path::PathBuf;
 
@@ -53,6 +53,10 @@ struct Args {
     /// Example: waystt --pipe-to ydotool type --file -
     #[arg(long, short = 'p', num_args = 1.., value_name = "COMMAND", allow_hyphen_values = true, trailing_var_arg = true)]
     pipe_to: Option<Vec<String>>,
+
+    /// Download the configured local model and exit
+    #[arg(long)]
+    download_model: bool,
 }
 
 fn get_default_config_path() -> PathBuf {
@@ -60,6 +64,21 @@ fn get_default_config_path() -> PathBuf {
         .unwrap_or_else(|| std::env::var("HOME").map_or_else(|_| PathBuf::from("."), PathBuf::from))
         .join("waystt")
         .join(".env")
+}
+
+async fn download_model(model: &str) -> Result<PathBuf> {
+    let base_url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main";
+    let url = format!("{}/{}", base_url, model);
+    let dir = Config::model_dir();
+    tokio::fs::create_dir_all(&dir).await?;
+    let path = dir.join(model);
+    let resp = reqwest::get(&url).await.map_err(|e| anyhow!("{}", e))?;
+    if !resp.status().is_success() {
+        return Err(anyhow!("Failed to download model: {}", resp.status()));
+    }
+    let bytes = resp.bytes().await?;
+    tokio::fs::write(&path, &bytes).await?;
+    Ok(path)
 }
 
 /// Process recorded audio for transcription
@@ -359,9 +378,25 @@ async fn main() -> Result<()> {
         Config::from_env()
     };
 
+    if args.download_model {
+        match download_model(&config.whisper_model).await {
+            Ok(path) => {
+                eprintln!("Model downloaded to {}", path.display());
+                return Ok(());
+            }
+            Err(e) => {
+                eprintln!("Failed to download model: {}", e);
+                std::process::exit(1);
+            }
+        }
+    }
+
     // Validate configuration (but don't fail if API key missing, as we're just recording for now)
     if let Err(e) = config.validate() {
         eprintln!("Configuration warning: {}", e);
+        if config.transcription_provider == "local" {
+            std::process::exit(1);
+        }
         eprintln!(
             "Note: This is expected during development phase before transcription is implemented"
         );

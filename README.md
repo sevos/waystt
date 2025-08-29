@@ -9,6 +9,7 @@ Press a keybind, speak, and get instant text output. A speech-to-text tool that 
 - **On-demand operation**: Starts when called, processes audio, then exits
 - **Audio feedback**: Beeps confirm recording start/stop and success
 - **Wayland native**: Works with modern Linux desktops (Hyprland, Niri, etc.)
+- **Optional local transcription**: Run Whisper locally using whisper-rs
 
 ## Requirements
 
@@ -102,6 +103,9 @@ pkill --signal SIGUSR1 waystt
 ### Common Commands
 
 ```bash
+# Download local model and exit
+waystt --download-model
+
 # Start waystt and save output to file
 waystt > output.txt
 
@@ -258,6 +262,23 @@ GOOGLE_SPEECH_MODEL=latest_long
 # Optional: Alternative languages for auto-detection (comma-separated)
 GOOGLE_SPEECH_ALTERNATIVE_LANGUAGES=es-ES,fr-FR,de-DE
 ```
+
+### Local Whisper (whisper-rs)
+
+Run transcription locally without sending audio to external APIs.
+
+```bash
+# Switch to local provider
+TRANSCRIPTION_PROVIDER=local
+
+# Model file name stored in ~/.local/share/applications/waystt/models/
+WHISPER_MODEL=ggml-base.en.bin
+
+# Download the model and exit
+waystt --download-model
+```
+
+If the configured model is missing, the application will exit with an error. OpenAI remains the default provider.
 
 **Popular Google language codes:**
 - `en-US` - English (United States)

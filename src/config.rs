@@ -250,7 +250,10 @@ pub fn bootstrap(envfile: Option<&Path>) -> anyhow::Result<Config> {
             if path.exists() {
                 Config::load_env_file(path)?
             } else {
-                eprintln!("Environment file {} not found, using system environment", path.display());
+                eprintln!(
+                    "Environment file {} not found, using system environment",
+                    path.display()
+                );
                 Config::from_env()
             }
         }

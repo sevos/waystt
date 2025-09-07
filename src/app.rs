@@ -67,7 +67,8 @@ impl App {
             }
 
             // Poll signals with timeout to keep loop responsive
-            match tokio::time::timeout(tokio::time::Duration::from_millis(100), signals.next()).await
+            match tokio::time::timeout(tokio::time::Duration::from_millis(100), signals.next())
+                .await
             {
                 Ok(Some(signal)) => match signal {
                     s if s == signals::TRANSCRIBE_SIG => {
@@ -84,7 +85,10 @@ impl App {
                             .recorder
                             .get_recording_duration_seconds()
                             .unwrap_or_default();
-                        eprintln!("Received SIGUSR1: Starting transcription for {:.2}s buffer", duration);
+                        eprintln!(
+                            "Received SIGUSR1: Starting transcription for {:.2}s buffer",
+                            duration
+                        );
 
                         let audio_data = match self.recorder.get_audio_data() {
                             Ok(d) => d,
@@ -124,7 +128,7 @@ impl App {
                         eprintln!("Received unexpected signal: {}", other);
                     }
                 },
-                Ok(None) => break, // stream ended
+                Ok(None) => break,  // stream ended
                 Err(_) => continue, // timeout
             }
         }
@@ -173,7 +177,7 @@ impl App {
         {
             Ok(text) => {
                 if text.is_empty() {
-                    println!("");
+                    println!();
                     let _ = self.beeps.play_async(BeepType::Success).await;
                     return Ok(0);
                 }
@@ -203,7 +207,10 @@ impl App {
                         eprintln!("💡 Check your {} API key configuration", provider);
                     }
                     TranscriptionError::NetworkError(details) => {
-                        eprintln!("🌐 Network details: {} - {}", details.error_type, details.error_message);
+                        eprintln!(
+                            "🌐 Network details: {} - {}",
+                            details.error_type, details.error_message
+                        );
                     }
                     TranscriptionError::FileTooLarge(size) => {
                         eprintln!("💡 Audio file too large: {} bytes (max 25MB)", size);
@@ -212,11 +219,18 @@ impl App {
                         eprintln!("💡 Check your transcription provider configuration");
                     }
                     TranscriptionError::UnsupportedProvider(provider) => {
-                        eprintln!("💡 Unsupported provider: {}. Check TRANSCRIPTION_PROVIDER setting", provider);
+                        eprintln!(
+                            "💡 Unsupported provider: {}. Check TRANSCRIPTION_PROVIDER setting",
+                            provider
+                        );
                     }
                     TranscriptionError::ApiError(details) => {
-                        if let Some(status) = details.status_code { eprintln!("📡 API Response: HTTP {}", status); }
-                        if let Some(code) = &details.error_code { eprintln!("🏷️  Error Code: {}", code); }
+                        if let Some(status) = details.status_code {
+                            eprintln!("📡 API Response: HTTP {}", status);
+                        }
+                        if let Some(code) = &details.error_code {
+                            eprintln!("🏷️  Error Code: {}", code);
+                        }
                     }
                     TranscriptionError::JsonError(_) => {
                         eprintln!("💡 Failed to parse API response");

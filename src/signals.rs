@@ -9,4 +9,3 @@ pub fn build_signal_stream() -> anyhow::Result<signal_hook_tokio::Signals> {
     let signals = signal_hook_tokio::Signals::new([SIGUSR1, SIGTERM])?;
     Ok(signals)
 }
-

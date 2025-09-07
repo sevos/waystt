@@ -15,4 +15,3 @@ pub struct RunOptions {
 pub fn default_envfile_path() -> PathBuf {
     crate::config::default_envfile()
 }
-

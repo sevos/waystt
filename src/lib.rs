@@ -8,18 +8,18 @@ use anyhow::Result;
 pub mod app;
 pub mod cli;
 pub mod config;
-pub mod signals;
 pub mod pipeline;
+pub mod signals;
 
 // Re-export existing modules for backward-compatibility and tests
 pub mod audio;
 pub mod audio_processing;
 pub mod beep;
 pub mod command;
-pub mod transcription;
-pub mod wav;
 #[cfg(test)]
 pub mod test_utils;
+pub mod transcription;
+pub mod wav;
 
 /// Run the application given CLI-level `RunOptions`.
 /// Returns a process exit code.
@@ -52,7 +52,8 @@ pub async fn run(options: cli::RunOptions) -> Result<i32> {
 
     // Create provider using explicit config injection
     let kind = config.provider_kind();
-    let provider = crate::transcription::TranscriptionFactory::create_provider(kind, &config).await?;
+    let provider =
+        crate::transcription::TranscriptionFactory::create_provider(kind, &config).await?;
 
     // Create app and run
     let app = crate::app::App::init(options, config, provider).await?;

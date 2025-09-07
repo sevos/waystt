@@ -15,10 +15,7 @@ impl AudioPipeline {
     pub fn new(sample_rate: u32) -> Self {
         let processor = AudioProcessor::new(sample_rate);
         let encoder = WavEncoder::new(sample_rate, 1);
-        Self {
-            processor,
-            encoder,
-        }
+        Self { processor, encoder }
     }
 
     pub fn preprocess(&self, audio: &[f32]) -> Result<Vec<f32>> {
@@ -31,9 +28,7 @@ impl AudioPipeline {
     }
 
     pub fn to_wav(&self, samples: &[f32]) -> Result<Vec<u8>> {
-        self.encoder
-            .encode_to_wav(samples)
-            .map_err(|e| anyhow!(e))
+        self.encoder.encode_to_wav(samples).map_err(|e| anyhow!(e))
     }
 
     pub async fn transcribe(

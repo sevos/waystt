@@ -133,11 +133,12 @@ impl TranscriptionFactory {
                 Ok(Box::new(provider))
             }
             ProviderKind::Google => {
-                let credentials_path = cfg.google_application_credentials.clone().ok_or_else(|| {
-                    TranscriptionError::ConfigurationError(
-                        "Google application credentials not found".to_string(),
-                    )
-                })?;
+                let credentials_path =
+                    cfg.google_application_credentials.clone().ok_or_else(|| {
+                        TranscriptionError::ConfigurationError(
+                            "Google application credentials not found".to_string(),
+                        )
+                    })?;
 
                 let client = google_v2_rest::GoogleV2RestProvider::new(
                     credentials_path,
@@ -205,12 +206,6 @@ mod tests {
 
         let error = TranscriptionError::UnsupportedProvider("azure".to_string());
         assert_eq!(error.to_string(), "Unsupported provider: azure");
-    }
-
-    #[tokio::test]
-    async fn test_factory_unsupported_provider() {
-        // No longer applicable: provider is explicit enum; nothing to test here.
-        assert!(true);
     }
 
     #[tokio::test]
@@ -359,7 +354,8 @@ mod tests {
             let config = crate::config::load_config();
             assert_eq!(config.transcription_provider, "openai");
 
-            let provider = TranscriptionFactory::create_provider(ProviderKind::OpenAI, &config).await;
+            let provider =
+                TranscriptionFactory::create_provider(ProviderKind::OpenAI, &config).await;
             assert!(provider.is_ok());
 
             // Restore original state

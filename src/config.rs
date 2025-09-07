@@ -232,6 +232,60 @@ pub fn load_config() -> Config {
     Config::from_env()
 }
 
+/// Return the default envfile path, i.e. ~/.config/waystt/.env
+pub fn default_envfile() -> PathBuf {
+    dirs::config_dir()
+        .unwrap_or_else(|| std::env::var("HOME").map_or_else(|_| PathBuf::from("."), PathBuf::from))
+        .join("waystt")
+        .join(".env")
+}
+
+/// Bootstrap configuration, optionally loading from a provided envfile.
+/// If `envfile` is None, attempts to read the default envfile if present,
+/// otherwise falls back to the process environment. Always returns a validated Config
+/// or an error with a clear message.
+pub fn bootstrap(envfile: Option<&Path>) -> anyhow::Result<Config> {
+    let cfg = match envfile {
+        Some(path) => {
+            if path.exists() {
+                Config::load_env_file(path)?
+            } else {
+                eprintln!("Environment file {} not found, using system environment", path.display());
+                Config::from_env()
+            }
+        }
+        None => {
+            let def = default_envfile();
+            if def.exists() {
+                Config::load_env_file(&def)?
+            } else {
+                Config::from_env()
+            }
+        }
+    };
+    // Validate configuration but allow non-fatal warnings for providers other than local
+    if let Err(e) = cfg.validate() {
+        eprintln!("Configuration warning: {}", e);
+        if cfg.transcription_provider == "local" {
+            // For local provider, validation is strict because model presence is required
+            return Err(e);
+        }
+    }
+    Ok(cfg)
+}
+
+impl Config {
+    /// Map the configured provider to the strongly-typed kind.
+    pub fn provider_kind(&self) -> crate::transcription::ProviderKind {
+        match self.transcription_provider.to_lowercase().as_str() {
+            "openai" => crate::transcription::ProviderKind::OpenAI,
+            "google" => crate::transcription::ProviderKind::Google,
+            "local" => crate::transcription::ProviderKind::Local,
+            _ => crate::transcription::ProviderKind::OpenAI,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

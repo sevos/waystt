@@ -153,9 +153,14 @@ impl AudioProcessor {
             ));
         }
 
-        // Check if audio is completely silent
-        let has_signal = samples.iter().any(|&s| s.abs() > 0.001);
-        if !has_signal {
+        // Check if audio is completely silent (all zeros). Use a very small epsilon
+        // to guard against exact-zero buffers while allowing very quiet audio to pass
+        // to the trimming/normalization stage.
+        let peak = samples
+            .iter()
+            .map(|&s| s.abs())
+            .fold(0.0f32, |acc, x| acc.max(x));
+        if peak <= f32::EPSILON {
             return Err(anyhow::anyhow!("Audio contains no detectable signal"));
         }
 

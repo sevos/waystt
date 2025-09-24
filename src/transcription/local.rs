@@ -1,9 +1,9 @@
 use super::{ApiErrorDetails, TranscriptionError, TranscriptionProvider};
+use crate::config::Config;
 use async_trait::async_trait;
 use hound;
 use std::path::Path;
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
-use crate::config::Config;
 
 pub struct LocalWhisperProvider {
     context: WhisperContext,
@@ -28,8 +28,7 @@ impl LocalWhisperProvider {
             params.gpu_device(config.whisper_gpu_device);
         }
 
-        let ctx = WhisperContext::new_with_params(model_str, params)
-            .map_err(|e| {
+        let ctx = WhisperContext::new_with_params(model_str, params).map_err(|e| {
             TranscriptionError::ConfigurationError(format!("Failed to load model: {}", e))
         })?;
 

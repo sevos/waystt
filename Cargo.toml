@@ -6,6 +6,12 @@ description = "Speech-to-text tool for Wayland with stdout output"
 license = "GPL-3.0-or-later"
 authors = ["Artur Roszczyk <artur.roszczyk@gmail.com>"]
 
+[features]
+default = []
+# GPU acceleration features (choose one)
+cuda = ["whisper-rs/cuda"]
+vulkan = ["whisper-rs/vulkan"]
+
 [dependencies]
 # Core dependencies (essential)
 tokio = { version = "1.0", features = ["full"] }
@@ -51,6 +57,12 @@ tokio-test = "0.4"
 [[bin]]
 name = "waystt"
 path = "src/main.rs"
+
+[[bin]]
+name = "waystt-vulkan"
+path = "src/main.rs"
+required-features = ["vulkan"]
+
 
 [profile.release]
 opt-level = 3

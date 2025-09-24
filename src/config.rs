@@ -21,6 +21,9 @@ pub struct Config {
     pub rust_log: String,
     pub enable_audio_feedback: bool,
     pub beep_volume: f32,
+    // Local Whisper GPU configuration
+    pub whisper_use_gpu: bool,
+    pub whisper_gpu_device: i32,
     // Google Speech-to-Text configuration
     pub google_application_credentials: Option<String>,
     pub google_speech_language_code: String,
@@ -44,6 +47,9 @@ impl Default for Config {
             rust_log: "info".to_string(),
             enable_audio_feedback: true,
             beep_volume: 0.1,
+            // Local Whisper GPU defaults
+            whisper_use_gpu: false,
+            whisper_gpu_device: 0,
             // Google Speech-to-Text defaults
             google_application_credentials: None,
             google_speech_language_code: "en-US".to_string(),
@@ -135,6 +141,17 @@ impl Config {
         if let Ok(volume) = std::env::var("BEEP_VOLUME") {
             if let Ok(parsed) = volume.parse::<f32>() {
                 config.beep_volume = parsed.clamp(0.0, 1.0);
+            }
+        }
+
+        // Load Local Whisper GPU configuration
+        if let Ok(use_gpu) = std::env::var("WHISPER_USE_GPU") {
+            config.whisper_use_gpu = use_gpu.to_lowercase() == "true";
+        }
+
+        if let Ok(gpu_device) = std::env::var("WHISPER_GPU_DEVICE") {
+            if let Ok(parsed) = gpu_device.parse::<i32>() {
+                config.whisper_gpu_device = parsed;
             }
         }
 

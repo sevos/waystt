@@ -95,6 +95,28 @@ async fn test_name() {
 - When developing/testing, use `--envfile .env` to use the project-local .env file instead of ~/.config/waystt/.env
 - Example: `BEEP_VOLUME=0.0 cargo run -- --envfile .env`
 
+### GPU Acceleration
+The project supports optional GPU acceleration for local whisper transcription:
+
+#### Build Options
+- **CPU only** (default): `cargo build --release --bin waystt`
+- **AMD GPU**: `cargo build --release --features vulkan --bin waystt-vulkan`
+
+This creates separate binaries:
+- `target/release/waystt` - CPU-only, minimal
+- `target/release/waystt-vulkan` - AMD GPU support
+
+#### Configuration
+Set these environment variables in your `.env` file:
+```bash
+TRANSCRIPTION_PROVIDER=local
+WHISPER_USE_GPU=true
+WHISPER_GPU_DEVICE=0  # GPU device ID
+```
+
+#### Prerequisites
+- **AMD**: Install `vulkan-devel/libvulkan-dev` `vulkan-tools`
+
 ## QA Testing Workflow
 
 - For QAing, run the app with `nohup` and `&` to properly detach from terminal:

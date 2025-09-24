@@ -1,4 +1,5 @@
 use super::{ApiErrorDetails, TranscriptionError, TranscriptionProvider};
+use crate::config::Config;
 use async_trait::async_trait;
 use hound;
 use std::path::Path;
@@ -9,7 +10,7 @@ pub struct LocalWhisperProvider {
 }
 
 impl LocalWhisperProvider {
-    pub fn new(model_path: &Path) -> Result<Self, TranscriptionError> {
+    pub fn new(model_path: &Path, config: &Config) -> Result<Self, TranscriptionError> {
         if !model_path.exists() {
             return Err(TranscriptionError::ConfigurationError(format!(
                 "Model file not found: {}",
@@ -21,8 +22,13 @@ impl LocalWhisperProvider {
             TranscriptionError::ConfigurationError("Invalid model path".to_string())
         })?;
 
-        let ctx = WhisperContext::new_with_params(model_str, WhisperContextParameters::default())
-            .map_err(|e| {
+        let mut params = WhisperContextParameters::default();
+        params.use_gpu(config.whisper_use_gpu);
+        if config.whisper_use_gpu {
+            params.gpu_device(config.whisper_gpu_device);
+        }
+
+        let ctx = WhisperContext::new_with_params(model_str, params).map_err(|e| {
             TranscriptionError::ConfigurationError(format!("Failed to load model: {}", e))
         })?;
 

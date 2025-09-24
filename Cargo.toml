@@ -6,6 +6,11 @@ description = "Speech-to-text tool for Wayland with stdout output"
 license = "GPL-3.0-or-later"
 authors = ["Artur Roszczyk <artur.roszczyk@gmail.com>"]
 
+[features]
+default = []
+# GPU acceleration features (choose one)
+vulkan = ["whisper-rs/vulkan"]
+
 [dependencies]
 # Core dependencies (essential)
 tokio = { version = "1.0", features = ["full"] }
@@ -38,7 +43,10 @@ async-trait = "0.1"
 
 # Google Cloud Speech-to-Text (using google-api-proto instead of google-speech1)
 google-api-proto = { version = "1.710", features = ["google-cloud-speech-v2"] }
-tonic = { version = "0.12.3", features = ["tls-webpki-roots", "tls-native-roots"] }
+tonic = { version = "0.12.3", features = [
+    "tls-webpki-roots",
+    "tls-native-roots",
+] }
 yup-oauth2 = "11.0"
 
 

@@ -12,9 +12,11 @@
 
 use anyhow::{anyhow, Result};
 use clap::Parser;
-use std::path::PathBuf;
+use std::{io::Write, path::PathBuf};
 
-#[cfg(not(test))]
+use std::time::Instant;
+use tokio::io::AsyncWriteExt;
+
 use futures::stream::StreamExt;
 #[cfg(not(test))]
 use signal_hook::consts::{SIGTERM, SIGUSR1};
@@ -72,12 +74,56 @@ async fn download_model(model: &str) -> Result<PathBuf> {
     let dir = Config::model_dir();
     tokio::fs::create_dir_all(&dir).await?;
     let path = dir.join(model);
+
     let resp = reqwest::get(&url).await.map_err(|e| anyhow!("{}", e))?;
     if !resp.status().is_success() {
         return Err(anyhow!("Failed to download model: {}", resp.status()));
     }
-    let bytes = resp.bytes().await?;
-    tokio::fs::write(&path, &bytes).await?;
+
+    let total_size = resp.content_length();
+    let mut file = tokio::fs::File::create(&path).await?;
+    let mut stream = resp.bytes_stream();
+
+    let mut downloaded = 0u64;
+    let start_time = Instant::now();
+
+    print!("{}... ", model);
+    std::io::stdout().flush().unwrap();
+
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| anyhow!("Download error: {}", e))?;
+        file.write_all(&chunk).await?;
+        downloaded += chunk.len() as u64;
+
+        if let Some(total) = total_size {
+            let percentage = (downloaded as f64 / total as f64) * 100.0;
+            let elapsed = start_time.elapsed().as_secs_f64();
+
+            if elapsed > 0.0 {
+                let speed = downloaded as f64 / elapsed / 1024.0 / 1024.0; // MB/s
+                let eta = if speed > 0.0 {
+                    (total - downloaded) as f64 / (speed * 1024.0 * 1024.0)
+                } else {
+                    0.0
+                };
+
+                print!(
+                    "\r{}... {:.1}% ({:.1} MB/s, ETA: {:.0}s)    ",
+                    model, percentage, speed, eta
+                );
+                std::io::stdout().flush().unwrap();
+            }
+        } else {
+            print!(
+                "\r{}... {:.1} MB downloaded    ",
+                model,
+                downloaded as f64 / 1024.0 / 1024.0
+            );
+            std::io::stdout().flush().unwrap();
+        }
+    }
+
+    file.flush().await?;
     Ok(path)
 }
 

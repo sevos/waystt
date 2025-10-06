@@ -50,7 +50,7 @@ tokio-test = "0.4"
 
 [[bin]]
 name = "waystt"
-path = "src/main.rs"
+path = "src/bin/waystt.rs"
 
 [profile.release]
 opt-level = 3

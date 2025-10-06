@@ -165,6 +165,16 @@ impl TranscriptionProvider for OpenAIProvider {
             return Err(TranscriptionError::FileTooLarge(audio_data.len()));
         }
 
+        // Normalize language: treat "auto" or empty as no language (auto-detect)
+        let language = language.and_then(|s| {
+            let t = s.trim().to_string();
+            if t.is_empty() || t.eq_ignore_ascii_case("auto") {
+                None
+            } else {
+                Some(t)
+            }
+        });
+
         let mut retries = 0;
         loop {
             match self

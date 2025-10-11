@@ -23,6 +23,10 @@ pub mod wav;
 
 /// Run the application given CLI-level `RunOptions`.
 /// Returns a process exit code.
+///
+/// # Errors
+///
+/// Returns an error if configuration bootstrap fails, model download fails, or application initialization fails
 pub async fn run(options: cli::RunOptions) -> Result<i32> {
     // Bootstrap configuration
     let config = crate::config::bootstrap(options.envfile.as_deref())?;
@@ -36,17 +40,19 @@ pub async fn run(options: cli::RunOptions) -> Result<i32> {
             // Download via existing helper in app layer (reuse current behavior)
             // We keep the simple inline implementation here to avoid public API churn.
             let base_url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main";
-            let url = format!("{}/{}", base_url, model);
+            let url = format!("{base_url}/{model}");
             let dir = crate::config::Config::model_dir();
             tokio::fs::create_dir_all(&dir).await?;
             let resp = reqwest::get(&url).await?;
             if !resp.status().is_success() {
-                anyhow::bail!("Failed to download model: {}", resp.status());
+                let status = resp.status();
+                anyhow::bail!("Failed to download model: {status}");
             }
             let bytes = resp.bytes().await?;
             tokio::fs::write(&path, &bytes).await?;
         }
-        eprintln!("Model available at {}", path.display());
+        let display_path = path.display();
+        eprintln!("Model available at {display_path}");
         return Ok(0);
     }
 

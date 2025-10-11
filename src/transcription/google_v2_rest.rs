@@ -61,6 +61,11 @@ struct SpeechRecognitionAlternative {
 }
 
 impl GoogleV2RestProvider {
+    /// Create a new Google Speech-to-Text v2 REST provider
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if credentials cannot be loaded or parsed
     pub async fn new(
         credentials_path: String,
         language_code: String,
@@ -73,16 +78,14 @@ impl GoogleV2RestProvider {
                 .await
                 .map_err(|e| {
                     TranscriptionError::ConfigurationError(format!(
-                        "Failed to read service account key from {}: {}",
-                        credentials_path, e
+                        "Failed to read service account key from {credentials_path}: {e}"
                     ))
                 })?;
 
         let service_account_key: ServiceAccountKey = serde_json::from_str(&service_account_key)
             .map_err(|e| {
                 TranscriptionError::ConfigurationError(format!(
-                    "Failed to parse service account key: {}",
-                    e
+                    "Failed to parse service account key: {e}"
                 ))
             })?;
 
@@ -136,16 +139,14 @@ impl GoogleV2RestProvider {
             .await
             .map_err(|e| {
                 TranscriptionError::ConfigurationError(format!(
-                    "Failed to read service account key: {}",
-                    e
+                    "Failed to read service account key: {e}"
                 ))
             })?;
 
         let service_account_key: ServiceAccountKey = serde_json::from_str(&service_account_key)
             .map_err(|e| {
                 TranscriptionError::ConfigurationError(format!(
-                    "Failed to parse service account key: {}",
-                    e
+                    "Failed to parse service account key: {e}"
                 ))
             })?;
 
@@ -173,6 +174,7 @@ impl GoogleV2RestProvider {
 
 #[async_trait]
 impl TranscriptionProvider for GoogleV2RestProvider {
+    #[allow(clippy::too_many_lines)]
     async fn transcribe_with_language(
         &self,
         audio_data: Vec<u8>,
@@ -222,16 +224,16 @@ impl TranscriptionProvider for GoogleV2RestProvider {
         };
 
         // Build API URL
+        let project_id = &self.project_id;
         let url = format!(
-            "https://speech.googleapis.com/v2/projects/{}/locations/global/recognizers/_:recognize",
-            self.project_id
+            "https://speech.googleapis.com/v2/projects/{project_id}/locations/global/recognizers/_:recognize"
         );
 
         // Make HTTP request
         let response = self
             .client
             .post(&url)
-            .header("Authorization", format!("Bearer {}", access_token))
+            .header("Authorization", format!("Bearer {access_token}"))
             .header("Content-Type", "application/json")
             .json(&request_payload)
             .send()
@@ -248,7 +250,7 @@ impl TranscriptionProvider for GoogleV2RestProvider {
                     } else {
                         "Network error".to_string()
                     },
-                    error_message: format!("HTTP request failed: {}", e),
+                    error_message: format!("HTTP request failed: {e}"),
                 })
             })?;
 
@@ -306,7 +308,7 @@ impl TranscriptionProvider for GoogleV2RestProvider {
                 provider: "Google Speech-to-Text REST".to_string(),
                 status_code: Some(200),
                 error_code: None,
-                error_message: format!("Failed to parse response: {}", e),
+                error_message: format!("Failed to parse response: {e}"),
                 raw_response: None,
             })
         })?;

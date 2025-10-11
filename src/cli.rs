@@ -12,6 +12,7 @@ pub struct RunOptions {
 }
 
 /// Default path for the env file.
+#[must_use]
 pub fn default_envfile_path() -> PathBuf {
     crate::config::default_envfile()
 }

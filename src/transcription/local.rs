@@ -9,6 +9,11 @@ pub struct LocalWhisperProvider {
 }
 
 impl LocalWhisperProvider {
+    /// Create a new local Whisper provider
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the model file cannot be loaded
     pub fn new(model_path: &Path) -> Result<Self, TranscriptionError> {
         if !model_path.exists() {
             return Err(TranscriptionError::ConfigurationError(format!(
@@ -23,7 +28,7 @@ impl LocalWhisperProvider {
 
         let ctx = WhisperContext::new_with_params(model_str, WhisperContextParameters::default())
             .map_err(|e| {
-            TranscriptionError::ConfigurationError(format!("Failed to load model: {}", e))
+            TranscriptionError::ConfigurationError(format!("Failed to load model: {e}"))
         })?;
 
         Ok(Self { context: ctx })
@@ -39,14 +44,14 @@ impl TranscriptionProvider for LocalWhisperProvider {
     ) -> Result<String, TranscriptionError> {
         // Decode WAV to PCM samples
         let reader = hound::WavReader::new(std::io::Cursor::new(audio_data)).map_err(|e| {
-            TranscriptionError::ConfigurationError(format!("Failed to read WAV data: {}", e))
+            TranscriptionError::ConfigurationError(format!("Failed to read WAV data: {e}"))
         })?;
         let samples: Result<Vec<f32>, _> = reader
             .into_samples::<i16>()
             .map(|s| s.map(|v| f32::from(v) / f32::from(i16::MAX)))
             .collect();
         let samples = samples.map_err(|e| {
-            TranscriptionError::ConfigurationError(format!("Failed to parse WAV samples: {}", e))
+            TranscriptionError::ConfigurationError(format!("Failed to parse WAV samples: {e}"))
         })?;
 
         let mut state = self.context.create_state().map_err(|e| {
@@ -54,7 +59,7 @@ impl TranscriptionProvider for LocalWhisperProvider {
                 provider: "Local".to_string(),
                 status_code: None,
                 error_code: None,
-                error_message: format!("Failed to create state: {}", e),
+                error_message: format!("Failed to create state: {e}"),
                 raw_response: None,
             })
         })?;

@@ -45,42 +45,46 @@ impl fmt::Display for TranscriptionError {
         match self {
             TranscriptionError::AuthenticationFailed { provider, details } => {
                 if let Some(details) = details {
-                    write!(f, "Authentication failed with {}: {}", provider, details)
+                    write!(f, "Authentication failed with {provider}: {details}")
                 } else {
-                    write!(f, "Authentication failed with {}", provider)
+                    write!(f, "Authentication failed with {provider}")
                 }
             }
             TranscriptionError::NetworkError(details) => {
+                let provider = &details.provider;
+                let error_type = &details.error_type;
+                let error_message = &details.error_message;
                 write!(
                     f,
-                    "Network error with {}: {} - {}",
-                    details.provider, details.error_type, details.error_message
+                    "Network error with {provider}: {error_type} - {error_message}"
                 )
             }
             TranscriptionError::FileTooLarge(size) => {
-                write!(f, "File too large: {} bytes (max 25MB)", size)
+                write!(f, "File too large: {size} bytes (max 25MB)")
             }
             TranscriptionError::ApiError(details) => {
-                let mut msg = format!("API error with {}", details.provider);
+                let provider = &details.provider;
+                let mut msg = format!("API error with {provider}");
 
                 if let Some(status) = details.status_code {
-                    write!(&mut msg, " (HTTP {})", status).unwrap();
+                    write!(&mut msg, " (HTTP {status})").unwrap();
                 }
 
                 if let Some(code) = &details.error_code {
-                    write!(&mut msg, " [{}]", code).unwrap();
+                    write!(&mut msg, " [{code}]").unwrap();
                 }
 
-                write!(&mut msg, ": {}", details.error_message).unwrap();
+                let error_message = &details.error_message;
+                write!(&mut msg, ": {error_message}").unwrap();
 
-                write!(f, "{}", msg)
+                write!(f, "{msg}")
             }
-            TranscriptionError::JsonError(msg) => write!(f, "JSON error: {}", msg),
+            TranscriptionError::JsonError(msg) => write!(f, "JSON error: {msg}"),
             TranscriptionError::ConfigurationError(msg) => {
-                write!(f, "Configuration error: {}", msg)
+                write!(f, "Configuration error: {msg}")
             }
             TranscriptionError::UnsupportedProvider(provider) => {
-                write!(f, "Unsupported provider: {}", provider)
+                write!(f, "Unsupported provider: {provider}")
             }
         }
     }
@@ -107,6 +111,11 @@ pub enum ProviderKind {
 pub struct TranscriptionFactory;
 
 impl TranscriptionFactory {
+    /// Create a transcription provider based on the specified kind and configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the provider configuration is invalid or provider initialization fails
     pub async fn create_provider(
         kind: ProviderKind,
         cfg: &crate::config::Config,

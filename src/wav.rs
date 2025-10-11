@@ -14,6 +14,7 @@ pub struct WavEncoder {
 
 impl WavEncoder {
     /// Create a new WAV encoder with specified sample rate and channels
+    #[must_use]
     pub fn new(sample_rate: u32, channels: u16) -> Self {
         Self {
             sample_rate,
@@ -22,6 +23,7 @@ impl WavEncoder {
     }
 
     /// Generate WAV header for the given number of samples
+    #[must_use]
     pub fn generate_header(&self, num_samples: usize) -> Vec<u8> {
         let bits_per_sample = 16u16;
         let byte_rate = self.sample_rate * self.channels as u32 * (bits_per_sample as u32 / 8);
@@ -55,6 +57,7 @@ impl WavEncoder {
 
     /// Convert f32 samples to i16 PCM format
     /// Input samples should be in range [-1.0, 1.0]
+    #[must_use]
     pub fn convert_samples(&self, samples: &[f32]) -> Vec<i16> {
         samples
             .iter()
@@ -67,6 +70,10 @@ impl WavEncoder {
     }
 
     /// Convert f32 audio buffer to complete WAV file bytes
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the samples are empty
     pub fn encode_to_wav(&self, samples: &[f32]) -> Result<Vec<u8>> {
         if samples.is_empty() {
             return Err(anyhow::anyhow!("Cannot encode empty audio buffer to WAV"));

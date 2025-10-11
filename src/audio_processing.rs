@@ -17,6 +17,7 @@ pub struct AudioProcessor {
 
 impl AudioProcessor {
     /// Create new audio processor with specified sample rate
+    #[must_use]
     pub fn new(sample_rate: u32) -> Self {
         Self {
             sample_rate,
@@ -25,6 +26,7 @@ impl AudioProcessor {
     }
 
     /// Calculate RMS (Root Mean Square) for a window of audio samples
+    #[must_use]
     pub fn calculate_rms(&self, samples: &[f32]) -> f32 {
         if samples.is_empty() {
             return 0.0;
@@ -36,6 +38,7 @@ impl AudioProcessor {
 
     /// Detect silence in audio using RMS-based threshold
     /// Returns indices of silence regions as (start, end) pairs
+    #[must_use]
     pub fn detect_silence(&self, samples: &[f32], silence_threshold: f32) -> Vec<(usize, usize)> {
         let window_size = self.get_window_size_samples();
         let mut silence_regions = Vec::new();
@@ -69,6 +72,7 @@ impl AudioProcessor {
 
     /// Calculate adaptive silence threshold based on audio content
     /// Uses 10% of peak RMS as threshold
+    #[must_use]
     pub fn calculate_silence_threshold(&self, samples: &[f32]) -> f32 {
         let window_size = self.get_window_size_samples();
         let mut max_rms: f32 = 0.0;
@@ -82,6 +86,10 @@ impl AudioProcessor {
     }
 
     /// Trim silence from start and end of audio buffer
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the audio is empty or contains only silence
     pub fn trim_silence(&self, samples: &[f32]) -> Result<Vec<f32>> {
         if samples.is_empty() {
             return Err(anyhow::anyhow!(
@@ -116,6 +124,7 @@ impl AudioProcessor {
 
     /// Normalize audio to optimal levels for speech recognition
     /// Uses peak normalization to 80% of maximum amplitude
+    #[must_use]
     pub fn normalize_audio(&self, samples: &[f32]) -> Vec<f32> {
         if samples.is_empty() {
             return samples.to_vec();
@@ -139,6 +148,10 @@ impl AudioProcessor {
     }
 
     /// Validate audio quality and duration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the audio is empty, too short, or contains no detectable signal
     pub fn validate_audio(&self, samples: &[f32]) -> Result<()> {
         if samples.is_empty() {
             return Err(anyhow::anyhow!("Audio buffer is empty"));
@@ -148,8 +161,7 @@ impl AudioProcessor {
 
         if duration_seconds < 0.1 {
             return Err(anyhow::anyhow!(
-                "Audio duration too short: {:.2}s (minimum 0.1s required)",
-                duration_seconds
+                "Audio duration too short: {duration_seconds:.2}s (minimum 0.1s required)"
             ));
         }
 
@@ -168,6 +180,10 @@ impl AudioProcessor {
     }
 
     /// Complete audio processing pipeline for speech recognition
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if audio validation fails or if the audio contains only silence
     pub fn process_for_speech_recognition(&self, samples: &[f32]) -> Result<Vec<f32>> {
         // 1. Validate input
         self.validate_audio(samples)?;
@@ -190,6 +206,7 @@ impl AudioProcessor {
     }
 
     /// Get audio duration in seconds
+    #[must_use]
     pub fn get_duration_seconds(&self, samples: &[f32]) -> f32 {
         samples.len() as f32 / self.sample_rate as f32
     }
@@ -224,14 +241,14 @@ mod tests {
     fn test_calculate_rms_empty() {
         let processor = AudioProcessor::default();
         let empty_samples: Vec<f32> = vec![];
-        assert_eq!(processor.calculate_rms(&empty_samples), 0.0);
+        assert!(processor.calculate_rms(&empty_samples).abs() < f32::EPSILON);
     }
 
     #[test]
     fn test_calculate_rms_silent() {
         let processor = AudioProcessor::default();
         let silent_samples = vec![0.0, 0.0, 0.0, 0.0];
-        assert_eq!(processor.calculate_rms(&silent_samples), 0.0);
+        assert!(processor.calculate_rms(&silent_samples).abs() < f32::EPSILON);
     }
 
     #[test]
@@ -390,8 +407,8 @@ mod tests {
         let samples_1s = vec![0.0; 16000]; // 1 second at 16kHz
         let samples_half_s = vec![0.0; 8000]; // 0.5 seconds at 16kHz
 
-        assert_eq!(processor.get_duration_seconds(&samples_1s), 1.0);
-        assert_eq!(processor.get_duration_seconds(&samples_half_s), 0.5);
+        assert!((processor.get_duration_seconds(&samples_1s) - 1.0).abs() < f32::EPSILON);
+        assert!((processor.get_duration_seconds(&samples_half_s) - 0.5).abs() < f32::EPSILON);
     }
 
     #[test]

@@ -12,6 +12,11 @@ pub struct OpenAIProvider {
 }
 
 impl OpenAIProvider {
+    /// Create a new `OpenAI` provider with custom options
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the HTTP client cannot be initialized
     pub fn new_with_options(
         api_key: String,
         timeout_seconds: Option<u64>,

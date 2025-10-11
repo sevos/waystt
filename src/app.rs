@@ -20,6 +20,12 @@ pub struct App {
 }
 
 impl App {
+    /// Initialize the application
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if audio devices cannot be initialized or configured
+    #[allow(clippy::unused_async)]
     pub async fn init(
         options: RunOptions,
         config: Config,
@@ -43,17 +49,22 @@ impl App {
         })
     }
 
+    /// Run the application main loop
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if signal handling fails or audio recording cannot be started
     pub async fn run(mut self) -> Result<i32> {
         eprintln!("waystt - Wayland Speech-to-Text Tool");
         eprintln!("Starting audio recording...");
 
         if let Err(e) = self.beeps.play_async(BeepType::RecordingStart).await {
-            eprintln!("Warning: Failed to play recording start beep: {}", e);
+            eprintln!("Warning: Failed to play recording start beep: {e}");
         }
         tokio::time::sleep(tokio::time::Duration::from_millis(600)).await;
 
         if let Err(e) = self.recorder.start_recording() {
-            eprintln!("Failed to start recording: {}", e);
+            eprintln!("Failed to start recording: {e}");
             return Ok(1);
         }
 
@@ -63,7 +74,7 @@ impl App {
         loop {
             // Drive background audio events
             if let Err(e) = self.recorder.process_audio_events() {
-                eprintln!("Audio event processing error: {}", e);
+                eprintln!("Audio event processing error: {e}");
             }
 
             // Poll signals with timeout to keep loop responsive
@@ -74,11 +85,11 @@ impl App {
                     s if s == signals::TRANSCRIBE_SIG => {
                         // Stop recording for processing
                         if let Err(e) = self.recorder.stop_recording() {
-                            eprintln!("Failed to stop recording: {}", e);
+                            eprintln!("Failed to stop recording: {e}");
                         }
                         // Play stop beep to signal end of capture
                         if let Err(e) = self.beeps.play_async(BeepType::RecordingStop).await {
-                            eprintln!("Warning: Failed to play recording stop beep: {}", e);
+                            eprintln!("Warning: Failed to play recording stop beep: {e}");
                         }
 
                         let duration = self
@@ -86,14 +97,13 @@ impl App {
                             .get_recording_duration_seconds()
                             .unwrap_or_default();
                         eprintln!(
-                            "Received SIGUSR1: Starting transcription for {:.2}s buffer",
-                            duration
+                            "Received SIGUSR1: Starting transcription for {duration:.2}s buffer"
                         );
 
                         let audio_data = match self.recorder.get_audio_data() {
                             Ok(d) => d,
                             Err(e) => {
-                                eprintln!("Failed to get audio data: {}", e);
+                                eprintln!("Failed to get audio data: {e}");
                                 return Ok(1);
                             }
                         };
@@ -102,7 +112,7 @@ impl App {
 
                         // Clear buffer to free memory regardless of outcome
                         if let Err(e) = self.recorder.clear_buffer() {
-                            eprintln!("Failed to clear audio buffer: {}", e);
+                            eprintln!("Failed to clear audio buffer: {e}");
                         }
 
                         match res {
@@ -113,23 +123,23 @@ impl App {
                     s if s == signals::SHUTDOWN_SIG => {
                         eprintln!("Received SIGTERM: Shutting down gracefully");
                         if let Err(e) = self.recorder.stop_recording() {
-                            eprintln!("Failed to stop recording: {}", e);
+                            eprintln!("Failed to stop recording: {e}");
                         }
                         // Play stop beep on shutdown as well
                         if let Err(e) = self.beeps.play_async(BeepType::RecordingStop).await {
-                            eprintln!("Warning: Failed to play recording stop beep: {}", e);
+                            eprintln!("Warning: Failed to play recording stop beep: {e}");
                         }
                         if let Err(e) = self.recorder.clear_buffer() {
-                            eprintln!("Failed to clear audio buffer during shutdown: {}", e);
+                            eprintln!("Failed to clear audio buffer during shutdown: {e}");
                         }
                         return Ok(0);
                     }
                     other => {
-                        eprintln!("Received unexpected signal: {}", other);
+                        eprintln!("Received unexpected signal: {other}");
                     }
                 },
                 Ok(None) => break,  // stream ended
-                Err(_) => continue, // timeout
+                Err(_) => {} // timeout
             }
         }
 
@@ -138,13 +148,14 @@ impl App {
     }
 
     async fn process_and_transcribe(&self, audio_data: Vec<f32>) -> Result<i32> {
-        eprintln!("Processing audio: {} samples", audio_data.len());
+        let len = audio_data.len();
+        eprintln!("Processing audio: {len} samples");
 
         // Preprocess
         let processed = match self.pipeline.preprocess(&audio_data) {
             Ok(p) => p,
             Err(e) => {
-                eprintln!("Audio processing failed: {}", e);
+                eprintln!("Audio processing failed: {e}");
                 let _ = self.beeps.play_async(BeepType::Error).await;
                 return Ok(1);
             }
@@ -154,7 +165,7 @@ impl App {
         let wav = match self.pipeline.to_wav(&processed) {
             Ok(w) => w,
             Err(e) => {
-                eprintln!("Failed to encode WAV: {}", e);
+                eprintln!("Failed to encode WAV: {e}");
                 return Ok(1);
             }
         };
@@ -181,55 +192,55 @@ impl App {
                     let _ = self.beeps.play_async(BeepType::Success).await;
                     return Ok(0);
                 }
-                eprintln!("Transcription successful: \"{}\"", text);
+                eprintln!("Transcription successful: \"{text}\"");
                 let exit_code = if let Some(cmd) = &self.pipe_to {
                     match command::execute_with_input(cmd, &text).await {
                         Ok(code) => code,
                         Err(e) => {
-                            eprintln!("Failed to execute pipe command: {}", e);
+                            eprintln!("Failed to execute pipe command: {e}");
                             let _ = self.beeps.play_async(BeepType::Error).await;
                             1
                         }
                     }
                 } else {
-                    println!("{}", text);
+                    println!("{text}");
                     0
                 };
                 let _ = self.beeps.play_async(BeepType::Success).await;
                 Ok(exit_code)
             }
             Err(e) => {
-                eprintln!("❌ Transcription failed: {}", e);
+                eprintln!("❌ Transcription failed: {e}");
                 let _ = self.beeps.play_async(BeepType::Error).await;
                 // Provide helpful hints based on error type (minimal version)
                 match &e {
                     TranscriptionError::AuthenticationFailed { provider, .. } => {
-                        eprintln!("💡 Check your {} API key configuration", provider);
+                        eprintln!("💡 Check your {provider} API key configuration");
                     }
                     TranscriptionError::NetworkError(details) => {
+                        let error_type = &details.error_type;
+                        let error_message = &details.error_message;
                         eprintln!(
-                            "🌐 Network details: {} - {}",
-                            details.error_type, details.error_message
+                            "🌐 Network details: {error_type} - {error_message}"
                         );
                     }
                     TranscriptionError::FileTooLarge(size) => {
-                        eprintln!("💡 Audio file too large: {} bytes (max 25MB)", size);
+                        eprintln!("💡 Audio file too large: {size} bytes (max 25MB)");
                     }
                     TranscriptionError::ConfigurationError(_) => {
                         eprintln!("💡 Check your transcription provider configuration");
                     }
                     TranscriptionError::UnsupportedProvider(provider) => {
                         eprintln!(
-                            "💡 Unsupported provider: {}. Check TRANSCRIPTION_PROVIDER setting",
-                            provider
+                            "💡 Unsupported provider: {provider}. Check TRANSCRIPTION_PROVIDER setting"
                         );
                     }
                     TranscriptionError::ApiError(details) => {
                         if let Some(status) = details.status_code {
-                            eprintln!("📡 API Response: HTTP {}", status);
+                            eprintln!("📡 API Response: HTTP {status}");
                         }
                         if let Some(code) = &details.error_code {
-                            eprintln!("🏷️  Error Code: {}", code);
+                            eprintln!("🏷️  Error Code: {code}");
                         }
                     }
                     TranscriptionError::JsonError(_) => {

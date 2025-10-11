@@ -55,6 +55,7 @@ impl Default for Config {
 
 impl Config {
     /// Directory where local whisper models are stored
+    #[must_use]
     pub fn model_dir() -> PathBuf {
         dirs::home_dir()
             .unwrap_or_else(|| PathBuf::from("."))
@@ -62,12 +63,14 @@ impl Config {
     }
 
     /// Full path to a model file in the model directory
+    #[must_use]
     pub fn model_path(model: &str) -> PathBuf {
         Self::model_dir().join(model)
     }
 
     /// Load configuration from environment variables
     #[allow(clippy::field_reassign_with_default)]
+    #[must_use]
     pub fn from_env() -> Self {
         let mut config = Config::default();
 
@@ -162,12 +165,20 @@ impl Config {
     }
 
     /// Load environment file and return config
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the environment file cannot be read or parsed
     pub fn load_env_file<P: AsRef<Path>>(path: P) -> Result<Self> {
         dotenvy::from_path(path)?;
         Ok(Self::from_env())
     }
 
     /// Validate configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if required configuration values are missing or invalid
     pub fn validate(&self) -> Result<()> {
         // Provider-specific validation
         match self.transcription_provider.as_str() {
@@ -195,9 +206,9 @@ impl Config {
                 }
             }
             _ => {
+                let provider = &self.transcription_provider;
                 return Err(anyhow::anyhow!(
-                    "Unsupported transcription provider: {}. Supported providers: openai, google, local",
-                    self.transcription_provider
+                    "Unsupported transcription provider: {provider}. Supported providers: openai, google, local"
                 ));
             }
         }
@@ -217,9 +228,9 @@ impl Config {
         }
 
         if self.beep_volume < 0.0 || self.beep_volume > 1.0 {
+            let vol = self.beep_volume;
             return Err(anyhow::anyhow!(
-                "BEEP_VOLUME must be between 0.0 and 1.0, got: {}",
-                self.beep_volume
+                "BEEP_VOLUME must be between 0.0 and 1.0, got: {vol}"
             ));
         }
 
@@ -228,11 +239,13 @@ impl Config {
 }
 
 /// Load configuration from environment variables
+#[must_use]
 pub fn load_config() -> Config {
     Config::from_env()
 }
 
 /// Return the default envfile path, i.e. ~/.config/waystt/.env
+#[must_use]
 pub fn default_envfile() -> PathBuf {
     dirs::config_dir()
         .unwrap_or_else(|| std::env::var("HOME").map_or_else(|_| PathBuf::from("."), PathBuf::from))
@@ -244,31 +257,32 @@ pub fn default_envfile() -> PathBuf {
 /// If `envfile` is None, attempts to read the default envfile if present,
 /// otherwise falls back to the process environment. Always returns a validated Config
 /// or an error with a clear message.
+///
+/// # Errors
+///
+/// Returns an error if the environment file cannot be read or if configuration validation fails
 pub fn bootstrap(envfile: Option<&Path>) -> anyhow::Result<Config> {
-    let cfg = match envfile {
-        Some(path) => {
-            if path.exists() {
-                Config::load_env_file(path)?
-            } else {
-                eprintln!(
-                    "Environment file {} not found, using system environment",
-                    path.display()
-                );
-                Config::from_env()
-            }
+    let cfg = if let Some(path) = envfile {
+        if path.exists() {
+            Config::load_env_file(path)?
+        } else {
+            let display_path = path.display();
+            eprintln!(
+                "Environment file {display_path} not found, using system environment"
+            );
+            Config::from_env()
         }
-        None => {
-            let def = default_envfile();
-            if def.exists() {
-                Config::load_env_file(&def)?
-            } else {
-                Config::from_env()
-            }
+    } else {
+        let def = default_envfile();
+        if def.exists() {
+            Config::load_env_file(&def)?
+        } else {
+            Config::from_env()
         }
     };
     // Validate configuration but allow non-fatal warnings for providers other than local
     if let Err(e) = cfg.validate() {
-        eprintln!("Configuration warning: {}", e);
+        eprintln!("Configuration warning: {e}");
         if cfg.transcription_provider == "local" {
             // For local provider, validation is strict because model presence is required
             return Err(e);
@@ -279,9 +293,9 @@ pub fn bootstrap(envfile: Option<&Path>) -> anyhow::Result<Config> {
 
 impl Config {
     /// Map the configured provider to the strongly-typed kind.
+    #[must_use]
     pub fn provider_kind(&self) -> crate::transcription::ProviderKind {
         match self.transcription_provider.to_lowercase().as_str() {
-            "openai" => crate::transcription::ProviderKind::OpenAI,
             "google" => crate::transcription::ProviderKind::Google,
             "local" => crate::transcription::ProviderKind::Local,
             _ => crate::transcription::ProviderKind::OpenAI,
@@ -331,7 +345,7 @@ mod tests {
         assert_eq!(config.whisper_language, "auto");
         assert_eq!(config.rust_log, "info");
         assert!(config.enable_audio_feedback);
-        assert_eq!(config.beep_volume, 0.1);
+        assert!((config.beep_volume - 0.1).abs() < f32::EPSILON);
         // Google defaults
         assert_eq!(config.google_application_credentials, None);
         assert_eq!(config.google_speech_language_code, "en-US");
@@ -586,7 +600,7 @@ mod tests {
 
             let config = Config::from_env();
             assert!(config.enable_audio_feedback);
-            assert_eq!(config.beep_volume, 0.5);
+            assert!((config.beep_volume - 0.5).abs() < f32::EPSILON);
 
             clear_env_vars();
 
@@ -596,7 +610,7 @@ mod tests {
 
             let config = Config::from_env();
             assert!(!config.enable_audio_feedback);
-            assert_eq!(config.beep_volume, 0.8);
+            assert!((config.beep_volume - 0.8).abs() < f32::EPSILON);
 
             clear_env_vars();
         }
@@ -612,16 +626,16 @@ mod tests {
             // Test invalid volume values
             env::set_var("BEEP_VOLUME", "invalid");
             let config = Config::from_env();
-            assert_eq!(config.beep_volume, 0.1); // Should use default
+            assert!((config.beep_volume - 0.1).abs() < f32::EPSILON); // Should use default
 
             // Test volume clamping
             env::set_var("BEEP_VOLUME", "2.0");
             let config = Config::from_env();
-            assert_eq!(config.beep_volume, 1.0); // Should be clamped to 1.0
+            assert!((config.beep_volume - 1.0).abs() < f32::EPSILON); // Should be clamped to 1.0
 
             env::set_var("BEEP_VOLUME", "-0.5");
             let config = Config::from_env();
-            assert_eq!(config.beep_volume, 0.0); // Should be clamped to 0.0
+            assert!(config.beep_volume.abs() < f32::EPSILON); // Should be clamped to 0.0
 
             clear_env_vars();
         }

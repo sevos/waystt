@@ -12,6 +12,11 @@ pub struct OpenAIProvider {
 }
 
 impl OpenAIProvider {
+    /// Create a new `OpenAI` provider with custom options
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the HTTP client cannot be initialized
     pub fn new_with_options(
         api_key: String,
         timeout_seconds: Option<u64>,
@@ -164,6 +169,16 @@ impl TranscriptionProvider for OpenAIProvider {
         if audio_data.len() > MAX_FILE_SIZE {
             return Err(TranscriptionError::FileTooLarge(audio_data.len()));
         }
+
+        // Normalize language: treat "auto" or empty as no language (auto-detect)
+        let language = language.and_then(|s| {
+            let t = s.trim().to_string();
+            if t.is_empty() || t.eq_ignore_ascii_case("auto") {
+                None
+            } else {
+                Some(t)
+            }
+        });
 
         let mut retries = 0;
         loop {

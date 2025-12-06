@@ -45,42 +45,46 @@ impl fmt::Display for TranscriptionError {
         match self {
             TranscriptionError::AuthenticationFailed { provider, details } => {
                 if let Some(details) = details {
-                    write!(f, "Authentication failed with {}: {}", provider, details)
+                    write!(f, "Authentication failed with {provider}: {details}")
                 } else {
-                    write!(f, "Authentication failed with {}", provider)
+                    write!(f, "Authentication failed with {provider}")
                 }
             }
             TranscriptionError::NetworkError(details) => {
+                let provider = &details.provider;
+                let error_type = &details.error_type;
+                let error_message = &details.error_message;
                 write!(
                     f,
-                    "Network error with {}: {} - {}",
-                    details.provider, details.error_type, details.error_message
+                    "Network error with {provider}: {error_type} - {error_message}"
                 )
             }
             TranscriptionError::FileTooLarge(size) => {
-                write!(f, "File too large: {} bytes (max 25MB)", size)
+                write!(f, "File too large: {size} bytes (max 25MB)")
             }
             TranscriptionError::ApiError(details) => {
-                let mut msg = format!("API error with {}", details.provider);
+                let provider = &details.provider;
+                let mut msg = format!("API error with {provider}");
 
                 if let Some(status) = details.status_code {
-                    write!(&mut msg, " (HTTP {})", status).unwrap();
+                    write!(&mut msg, " (HTTP {status})").unwrap();
                 }
 
                 if let Some(code) = &details.error_code {
-                    write!(&mut msg, " [{}]", code).unwrap();
+                    write!(&mut msg, " [{code}]").unwrap();
                 }
 
-                write!(&mut msg, ": {}", details.error_message).unwrap();
+                let error_message = &details.error_message;
+                write!(&mut msg, ": {error_message}").unwrap();
 
-                write!(f, "{}", msg)
+                write!(f, "{msg}")
             }
-            TranscriptionError::JsonError(msg) => write!(f, "JSON error: {}", msg),
+            TranscriptionError::JsonError(msg) => write!(f, "JSON error: {msg}"),
             TranscriptionError::ConfigurationError(msg) => {
-                write!(f, "Configuration error: {}", msg)
+                write!(f, "Configuration error: {msg}")
             }
             TranscriptionError::UnsupportedProvider(provider) => {
-                write!(f, "Unsupported provider: {}", provider)
+                write!(f, "Unsupported provider: {provider}")
             }
         }
     }
@@ -97,56 +101,64 @@ pub trait TranscriptionProvider: Send + Sync {
     ) -> Result<String, TranscriptionError>;
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProviderKind {
+    OpenAI,
+    Google,
+    Local,
+}
+
 pub struct TranscriptionFactory;
 
 impl TranscriptionFactory {
+    /// Create a transcription provider based on the specified kind and configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the provider configuration is invalid or provider initialization fails
     pub async fn create_provider(
-        provider_type: &str,
+        kind: ProviderKind,
+        cfg: &crate::config::Config,
     ) -> Result<Box<dyn TranscriptionProvider>, TranscriptionError> {
-        match provider_type.to_lowercase().as_str() {
-            "openai" => {
-                let config = crate::config::load_config();
-                let api_key = config.openai_api_key.ok_or_else(|| {
+        match kind {
+            ProviderKind::OpenAI => {
+                let api_key = cfg.openai_api_key.clone().ok_or_else(|| {
                     TranscriptionError::ConfigurationError("OpenAI API key not found".to_string())
                 })?;
 
                 let client = openai::OpenAIProvider::new_with_options(
                     api_key,
-                    Some(config.whisper_timeout_seconds),
-                    Some(config.whisper_max_retries),
-                    Some(config.whisper_model),
-                    config.openai_base_url,
+                    Some(cfg.whisper_timeout_seconds),
+                    Some(cfg.whisper_max_retries),
+                    Some(cfg.whisper_model.clone()),
+                    cfg.openai_base_url.clone(),
                 )?;
 
                 Ok(Box::new(client))
             }
-            "local" => {
-                let config = crate::config::load_config();
-                let model_path = crate::config::Config::model_path(&config.whisper_model);
+            ProviderKind::Local => {
+                let model_path = crate::config::Config::model_path(&cfg.whisper_model);
                 let provider = local::LocalWhisperProvider::new(&model_path)?;
                 Ok(Box::new(provider))
             }
-            "google" => {
-                let config = crate::config::load_config();
-                let credentials_path = config.google_application_credentials.ok_or_else(|| {
-                    TranscriptionError::ConfigurationError(
-                        "Google application credentials not found".to_string(),
-                    )
-                })?;
+            ProviderKind::Google => {
+                let credentials_path =
+                    cfg.google_application_credentials.clone().ok_or_else(|| {
+                        TranscriptionError::ConfigurationError(
+                            "Google application credentials not found".to_string(),
+                        )
+                    })?;
 
                 let client = google_v2_rest::GoogleV2RestProvider::new(
                     credentials_path,
-                    config.google_speech_language_code,
-                    config.google_speech_model,
-                    config.google_speech_alternative_languages,
+                    cfg.google_speech_language_code.clone(),
+                    cfg.google_speech_model.clone(),
+                    cfg.google_speech_alternative_languages.clone(),
                 )
                 .await?;
 
                 Ok(Box::new(client))
             }
-            _ => Err(TranscriptionError::UnsupportedProvider(
-                provider_type.to_string(),
-            )),
         }
     }
 }
@@ -206,18 +218,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_factory_unsupported_provider() {
-        let result = TranscriptionFactory::create_provider("unsupported").await;
-        assert!(result.is_err());
-
-        if let Err(TranscriptionError::UnsupportedProvider(provider)) = result {
-            assert_eq!(provider, "unsupported");
-        } else {
-            panic!("Expected UnsupportedProvider error");
-        }
-    }
-
-    #[tokio::test]
     async fn test_factory_openai_provider_missing_key() {
         #[allow(clippy::await_holding_lock)]
         {
@@ -227,7 +227,8 @@ mod tests {
             let original_key = std::env::var("OPENAI_API_KEY").ok();
             std::env::remove_var("OPENAI_API_KEY");
 
-            let result = TranscriptionFactory::create_provider("openai").await;
+            let cfg = crate::config::load_config();
+            let result = TranscriptionFactory::create_provider(ProviderKind::OpenAI, &cfg).await;
 
             // Restore original state
             if let Some(key) = original_key {
@@ -255,8 +256,8 @@ mod tests {
             // Save current state and set up test environment
             let original_key = std::env::var("OPENAI_API_KEY").ok();
             std::env::set_var("OPENAI_API_KEY", "test-key");
-
-            let result = TranscriptionFactory::create_provider("openai").await;
+            let cfg = crate::config::load_config();
+            let result = TranscriptionFactory::create_provider(ProviderKind::OpenAI, &cfg).await;
             assert!(result.is_ok());
 
             let provider = result.unwrap();
@@ -286,7 +287,8 @@ mod tests {
             let original_credentials = std::env::var("GOOGLE_APPLICATION_CREDENTIALS").ok();
             std::env::remove_var("GOOGLE_APPLICATION_CREDENTIALS");
 
-            let result = TranscriptionFactory::create_provider("google").await;
+            let cfg = crate::config::load_config();
+            let result = TranscriptionFactory::create_provider(ProviderKind::Google, &cfg).await;
 
             // Restore original state
             if let Some(credentials) = original_credentials {
@@ -315,22 +317,10 @@ mod tests {
             let original_key = std::env::var("OPENAI_API_KEY").ok();
             std::env::set_var("OPENAI_API_KEY", "test-key");
 
-            // Test case sensitivity
-            let result = TranscriptionFactory::create_provider("OpenAI").await;
+            // Enum-based selection
+            let cfg = crate::config::load_config();
+            let result = TranscriptionFactory::create_provider(ProviderKind::OpenAI, &cfg).await;
             assert!(result.is_ok());
-
-            let result = TranscriptionFactory::create_provider("OPENAI").await;
-            assert!(result.is_ok());
-
-            // Test that unsupported providers are handled correctly
-            let result = TranscriptionFactory::create_provider("unsupported_provider").await;
-            assert!(result.is_err());
-
-            if let Err(TranscriptionError::UnsupportedProvider(provider)) = result {
-                assert_eq!(provider, "unsupported_provider");
-            } else {
-                panic!("Expected UnsupportedProvider error");
-            }
 
             // Restore original state
             if let Some(key) = original_key {
@@ -350,7 +340,8 @@ mod tests {
             std::env::set_var("HOME", tmp_home.path());
             std::env::set_var("WHISPER_MODEL", "missing.bin");
 
-            let result = TranscriptionFactory::create_provider("local").await;
+            let cfg = crate::config::load_config();
+            let result = TranscriptionFactory::create_provider(ProviderKind::Local, &cfg).await;
             assert!(result.is_err());
         }
     }
@@ -373,7 +364,7 @@ mod tests {
             assert_eq!(config.transcription_provider, "openai");
 
             let provider =
-                TranscriptionFactory::create_provider(&config.transcription_provider).await;
+                TranscriptionFactory::create_provider(ProviderKind::OpenAI, &config).await;
             assert!(provider.is_ok());
 
             // Restore original state

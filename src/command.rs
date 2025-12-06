@@ -4,6 +4,10 @@ use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
 
 /// Execute a command with the given arguments, piping the provided input to its stdin
+///
+/// # Errors
+///
+/// Returns an error if the command fails to execute or if stdin/stdout operations fail
 pub async fn execute_with_input(command_args: &[String], input: &str) -> Result<i32> {
     if command_args.is_empty() {
         return Err(anyhow!("No command provided"));
@@ -12,8 +16,9 @@ pub async fn execute_with_input(command_args: &[String], input: &str) -> Result<
     let command_name = &command_args[0];
     let args = &command_args[1..];
 
-    eprintln!("Executing command: {} {:?}", command_name, args);
-    eprintln!("Input length: {} characters", input.len());
+    eprintln!("Executing command: {command_name} {args:?}");
+    let input_len = input.len();
+    eprintln!("Input length: {input_len} characters");
 
     let mut child = Command::new(command_name)
         .args(args)
@@ -21,20 +26,20 @@ pub async fn execute_with_input(command_args: &[String], input: &str) -> Result<
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .spawn()
-        .map_err(|e| anyhow!("Failed to execute command '{}': {}", command_name, e))?;
+        .map_err(|e| anyhow!("Failed to execute command '{command_name}': {e}"))?;
 
     // Get stdin handle and write input
     if let Some(mut stdin) = child.stdin.take() {
         stdin
             .write_all(input.as_bytes())
             .await
-            .map_err(|e| anyhow!("Failed to write to command stdin: {}", e))?;
+            .map_err(|e| anyhow!("Failed to write to command stdin: {e}"))?;
 
         // Close stdin to signal EOF
         stdin
             .shutdown()
             .await
-            .map_err(|e| anyhow!("Failed to close stdin: {}", e))?;
+            .map_err(|e| anyhow!("Failed to close stdin: {e}"))?;
     } else {
         return Err(anyhow!("Failed to get stdin handle for command"));
     }
@@ -43,10 +48,10 @@ pub async fn execute_with_input(command_args: &[String], input: &str) -> Result<
     let output = child
         .wait()
         .await
-        .map_err(|e| anyhow!("Failed to wait for command completion: {}", e))?;
+        .map_err(|e| anyhow!("Failed to wait for command completion: {e}"))?;
 
     let exit_code = output.code().unwrap_or(-1);
-    eprintln!("Command completed with exit code: {}", exit_code);
+    eprintln!("Command completed with exit code: {exit_code}");
 
     Ok(exit_code)
 }

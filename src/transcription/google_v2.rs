@@ -22,6 +22,11 @@ pub struct GoogleV2Provider {
 }
 
 impl GoogleV2Provider {
+    /// Create a new Google Speech-to-Text v2 provider
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if credentials cannot be loaded or the gRPC client cannot be initialized
     #[allow(dead_code)]
     pub async fn new(
         credentials_path: String,
@@ -35,16 +40,14 @@ impl GoogleV2Provider {
                 .await
                 .map_err(|e| {
                     TranscriptionError::ConfigurationError(format!(
-                        "Failed to read service account key from {}: {}",
-                        credentials_path, e
+                        "Failed to read service account key from {credentials_path}: {e}"
                     ))
                 })?;
 
         let service_account_key: ServiceAccountKey = serde_json::from_str(&service_account_key)
             .map_err(|e| {
                 TranscriptionError::ConfigurationError(format!(
-                    "Failed to parse service account key: {}",
-                    e
+                    "Failed to parse service account key: {e}"
                 ))
             })?;
 
@@ -81,7 +84,7 @@ impl GoogleV2Provider {
                 TranscriptionError::NetworkError(crate::transcription::NetworkErrorDetails {
                     provider: "Google Speech-to-Text gRPC".to_string(),
                     error_type: "TLS configuration error".to_string(),
-                    error_message: format!("TLS config error: {}", e),
+                    error_message: format!("TLS config error: {e}"),
                 })
             })?
             .timeout(std::time::Duration::from_secs(30))
@@ -90,7 +93,7 @@ impl GoogleV2Provider {
             TranscriptionError::NetworkError(crate::transcription::NetworkErrorDetails {
                 provider: "Google Speech-to-Text gRPC".to_string(),
                 error_type: "Connection failed".to_string(),
-                error_message: format!("Failed to connect to speech.googleapis.com: {}", e),
+                error_message: format!("Failed to connect to speech.googleapis.com: {e}"),
             })
         })?;
 
@@ -98,7 +101,7 @@ impl GoogleV2Provider {
         let client = SpeechClient::new(channel);
         let auth_token = format!("Bearer {}", token.token().unwrap_or(""));
 
-        let parent = format!("projects/{}/locations/global", project_id);
+        let parent = format!("projects/{project_id}/locations/global");
 
         Ok(Self {
             client,
@@ -214,19 +217,20 @@ impl TranscriptionProvider for GoogleV2Provider {
             };
 
             if e.code() == tonic::Code::Unauthenticated {
+                let message = e.message();
                 TranscriptionError::AuthenticationFailed {
                     provider: "Google Speech-to-Text gRPC".to_string(),
-                    details: Some(format!("{}: {}", error_type, e.message())),
+                    details: Some(format!("{error_type}: {message}")),
                 }
             } else {
+                let code = e.code();
+                let message = e.message();
+                let metadata = e.metadata();
                 TranscriptionError::NetworkError(crate::transcription::NetworkErrorDetails {
                     provider: "Google Speech-to-Text gRPC".to_string(),
                     error_type: error_type.to_string(),
                     error_message: format!(
-                        "status={:?}, message={}, details={:?}",
-                        e.code(),
-                        e.message(),
-                        e.metadata()
+                        "status={code:?}, message={message}, details={metadata:?}"
                     ),
                 })
             }

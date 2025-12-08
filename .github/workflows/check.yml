@@ -42,10 +42,10 @@ jobs:
       run: cargo fmt --all -- --check
 
     - name: Check compilation
-      run: cargo check --all-targets --all-features
+      run: cargo check --all-targets
 
     - name: Clippy linting
-      run: cargo clippy --all-targets --all-features -- -D warnings -W clippy::pedantic
+      run: cargo clippy --all-targets -- -D warnings -W clippy::pedantic
 
     - name: Check for unused dependencies
       run: |

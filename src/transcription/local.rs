@@ -1,4 +1,5 @@
 use super::{ApiErrorDetails, TranscriptionError, TranscriptionProvider};
+use crate::config::Config;
 use async_trait::async_trait;
 use hound;
 use std::path::Path;
@@ -9,7 +10,7 @@ pub struct LocalWhisperProvider {
 }
 
 impl LocalWhisperProvider {
-    pub fn new(model_path: &Path) -> Result<Self, TranscriptionError> {
+    pub fn new(model_path: &Path, config: &Config) -> Result<Self, TranscriptionError> {
         if !model_path.exists() {
             return Err(TranscriptionError::ConfigurationError(format!(
                 "Model file not found: {}",
@@ -21,8 +22,35 @@ impl LocalWhisperProvider {
             TranscriptionError::ConfigurationError("Invalid model path".to_string())
         })?;
 
-        let ctx = WhisperContext::new_with_params(model_str, WhisperContextParameters::default())
-            .map_err(|e| {
+        let mut params = WhisperContextParameters::default();
+
+        // Configure GPU backend based on WHISPER_BACKEND env var
+        match config.whisper_backend.as_str() {
+            "vulkan" => {
+                #[cfg(feature = "vulkan")]
+                {
+                    params.use_gpu(true);
+                    params.gpu_device(config.whisper_gpu_device);
+                }
+                #[cfg(not(feature = "vulkan"))]
+                {
+                    return Err(TranscriptionError::ConfigurationError(
+                        "Vulkan support not compiled. Rebuild with --features vulkan".to_string(),
+                    ));
+                }
+            }
+            "cpu" => {
+                params.use_gpu(false);
+            }
+            _ => {
+                return Err(TranscriptionError::ConfigurationError(format!(
+                    "Invalid WHISPER_BACKEND: '{}'. Valid options: cpu, vulkan",
+                    config.whisper_backend
+                )));
+            }
+        }
+
+        let ctx = WhisperContext::new_with_params(model_str, params).map_err(|e| {
             TranscriptionError::ConfigurationError(format!("Failed to load model: {}", e))
         })?;
 

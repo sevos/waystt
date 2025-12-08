@@ -1,0 +1,55 @@
+# Use Ubuntu 22.04 as the build environment
+FROM ubuntu:22.04
+
+# Prevent interactive prompts (timezone, etc.)
+ENV DEBIAN_FRONTEND=noninteractive
+
+# 1. Install standard build tools and dependencies
+#    - build-essential/cmake/git: Standard compilation tools
+#    - libssl-dev: Required by Rust 'reqwest'/'tonic' crates
+#    - libclang-dev: Required by Rust 'bindgen' to generate C++ bindings
+#    - libasound2-dev: Required by 'cpal' (audio input)
+RUN apt-get update && apt-get install -y \
+    curl \
+    wget \
+    gnupg \
+    build-essential \
+    pkg-config \
+    cmake \
+    git \
+    libssl-dev \
+    libclang-dev \
+    clang \
+    libasound2-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# 2. Install the Vulkan SDK (LunarG)
+#    This is CRITICAL. It provides the headers (vulkan.h), loader (libvulkan.so),
+#    and the shader compiler (glslc) required by whisper.cpp to build the backend.
+RUN wget -qO - https://packages.lunarg.com/lunarg-signing-key-pub.asc | apt-key add - && \
+    wget -qO /etc/apt/sources.list.d/lunarg-vulkan-jammy.list https://packages.lunarg.com/vulkan/lunarg-vulkan-jammy.list && \
+    apt-get update && apt-get install -y \
+    vulkan-sdk \
+    && rm -rf /var/lib/apt/lists/*
+
+# 3. Install Rust (Standard official install)
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# 4. Set working directory
+WORKDIR /build
+
+# 5. Copy source code
+COPY . .
+
+# 6. Build Command
+#    We build specifically for Vulkan.
+#    'cargo clean' ensures no stale artifacts from previous builds (if mounting cache).
+RUN echo "=== Starting Vulkan Build ===" && \
+    cargo clean && \
+    cargo build --release --features vulkan && \
+    strip target/release/waystt
+
+# 7. Default command: Copy the stripped binary to a mounted volume
+#    This allows the user to run: docker run -v $(pwd):/out waystt-builder
+CMD ["cp", "target/release/waystt", "/out/waystt-vulkan"]

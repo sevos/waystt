@@ -10,39 +10,20 @@ on:
 
 jobs:
   release:
-    name: Build and Release x86_64 Linux Binary
+    name: Build and Release
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        targets: x86_64-unknown-linux-gnu
-
-    - name: Install system dependencies
+    - name: Build binary with Vulkan support (Docker)
       run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          libasound2-dev \
-          pkg-config \
-          libpulse-dev \
-          libjack-jackd2-dev \
-          libpipewire-0.3-dev \
-          libspa-0.2-dev
-
-    - name: Build release binary
-      run: cargo build --release --target x86_64-unknown-linux-gnu
-
-    - name: Strip binary
-      run: strip target/x86_64-unknown-linux-gnu/release/waystt
-
-    - name: Rename binary for release
-      run: cp target/x86_64-unknown-linux-gnu/release/waystt waystt-linux-x86_64
+        docker build -f Dockerfile.build-vulkan -t waystt-builder .
+        docker run --rm -v $(pwd):/out waystt-builder
+        mv waystt-vulkan waystt-linux-x86_64
 
     - name: Create Release with Assets
       uses: softprops/action-gh-release@v2
@@ -51,7 +32,7 @@ jobs:
           waystt-linux-x86_64
           LICENSE
           CHANGELOG.md
-        name: waystt v${{ github.ref_name }}
+        name: waystt ${{ github.ref_name }}
         body_path: CHANGELOG.md
         draft: false
         prerelease: false

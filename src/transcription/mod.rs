@@ -123,7 +123,15 @@ impl TranscriptionFactory {
             "local" => {
                 let config = crate::config::load_config();
                 let model_path = crate::config::Config::model_path(&config.whisper_model);
-                let provider = local::LocalWhisperProvider::new(&model_path)?;
+
+                let gpu_config = local::LocalWhisperGpuConfig {
+                    use_gpu: config.whisper_use_gpu,
+                    gpu_device: config.whisper_gpu_device,
+                    flash_attn: config.whisper_flash_attn,
+                };
+
+                let provider =
+                    local::LocalWhisperProvider::new_with_gpu_config(&model_path, gpu_config)?;
                 Ok(Box::new(provider))
             }
             "google" => {

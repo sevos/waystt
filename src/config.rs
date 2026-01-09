@@ -26,6 +26,10 @@ pub struct Config {
     pub google_speech_language_code: String,
     pub google_speech_model: String,
     pub google_speech_alternative_languages: Vec<String>,
+    // Local Whisper GPU configuration
+    pub whisper_use_gpu: Option<bool>,
+    pub whisper_gpu_device: i32,
+    pub whisper_flash_attn: bool,
 }
 
 impl Default for Config {
@@ -49,6 +53,10 @@ impl Default for Config {
             google_speech_language_code: "en-US".to_string(),
             google_speech_model: "latest_long".to_string(),
             google_speech_alternative_languages: vec![],
+            // Local Whisper GPU configuration
+            whisper_use_gpu: None, // None = use compile-time default
+            whisper_gpu_device: 0,
+            whisper_flash_attn: false,
         }
     }
 }
@@ -120,6 +128,21 @@ impl Config {
             if let Ok(parsed) = retries.parse::<u32>() {
                 config.whisper_max_retries = parsed;
             }
+        }
+
+        // Load local Whisper GPU configuration
+        if let Ok(use_gpu) = std::env::var("WHISPER_USE_GPU") {
+            config.whisper_use_gpu = Some(use_gpu.to_lowercase() == "true");
+        }
+
+        if let Ok(gpu_device) = std::env::var("WHISPER_GPU_DEVICE") {
+            if let Ok(parsed) = gpu_device.parse::<i32>() {
+                config.whisper_gpu_device = parsed;
+            }
+        }
+
+        if let Ok(flash_attn) = std::env::var("WHISPER_FLASH_ATTN") {
+            config.whisper_flash_attn = flash_attn.to_lowercase() == "true";
         }
 
         // Load logging configuration
@@ -259,6 +282,9 @@ mod tests {
         env::remove_var("GOOGLE_SPEECH_LANGUAGE_CODE");
         env::remove_var("GOOGLE_SPEECH_MODEL");
         env::remove_var("GOOGLE_SPEECH_ALTERNATIVE_LANGUAGES");
+        env::remove_var("WHISPER_USE_GPU");
+        env::remove_var("WHISPER_GPU_DEVICE");
+        env::remove_var("WHISPER_FLASH_ATTN");
     }
 
     #[test]
@@ -280,6 +306,10 @@ mod tests {
         assert_eq!(config.google_speech_language_code, "en-US");
         assert_eq!(config.google_speech_model, "latest_long");
         assert!(config.google_speech_alternative_languages.is_empty());
+        // GPU defaults
+        assert_eq!(config.whisper_use_gpu, None);
+        assert_eq!(config.whisper_gpu_device, 0);
+        assert!(!config.whisper_flash_attn);
     }
 
     #[tokio::test]
@@ -762,5 +792,103 @@ mod tests {
         };
 
         assert!(config.validate().is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_gpu_config_from_env() {
+        #[allow(clippy::await_holding_lock)]
+        {
+            let _lock = ENV_MUTEX.lock().await;
+            clear_env_vars();
+
+            // Test GPU configuration loading
+            env::set_var("WHISPER_USE_GPU", "true");
+            env::set_var("WHISPER_GPU_DEVICE", "1");
+            env::set_var("WHISPER_FLASH_ATTN", "true");
+
+            let config = Config::from_env();
+            assert_eq!(config.whisper_use_gpu, Some(true));
+            assert_eq!(config.whisper_gpu_device, 1);
+            assert!(config.whisper_flash_attn);
+
+            clear_env_vars();
+
+            // Test default values
+            let config = Config::from_env();
+            assert_eq!(config.whisper_use_gpu, None);
+            assert_eq!(config.whisper_gpu_device, 0);
+            assert!(!config.whisper_flash_attn);
+
+            clear_env_vars();
+        }
+    }
+
+    #[tokio::test]
+    async fn test_gpu_config_invalid_values() {
+        #[allow(clippy::await_holding_lock)]
+        {
+            let _lock = ENV_MUTEX.lock().await;
+            clear_env_vars();
+
+            // Test invalid GPU device (non-numeric)
+            env::set_var("WHISPER_GPU_DEVICE", "invalid");
+            let config = Config::from_env();
+            assert_eq!(config.whisper_gpu_device, 0); // Should use default
+
+            clear_env_vars();
+
+            // Test case-insensitive boolean parsing
+            env::set_var("WHISPER_USE_GPU", "TRUE");
+            env::set_var("WHISPER_FLASH_ATTN", "True");
+            let config = Config::from_env();
+            assert_eq!(config.whisper_use_gpu, Some(true));
+            assert!(config.whisper_flash_attn);
+
+            clear_env_vars();
+        }
+    }
+
+    #[tokio::test]
+    async fn test_gpu_config_false_values() {
+        #[allow(clippy::await_holding_lock)]
+        {
+            let _lock = ENV_MUTEX.lock().await;
+            clear_env_vars();
+
+            // Test explicit false values
+            env::set_var("WHISPER_USE_GPU", "false");
+            env::set_var("WHISPER_FLASH_ATTN", "false");
+            let config = Config::from_env();
+            assert_eq!(config.whisper_use_gpu, Some(false));
+            assert!(!config.whisper_flash_attn);
+
+            clear_env_vars();
+        }
+    }
+
+    #[tokio::test]
+    async fn test_gpu_config_env_vars_cleared() {
+        #[allow(clippy::await_holding_lock)]
+        {
+            let _lock = ENV_MUTEX.lock().await;
+            clear_env_vars();
+
+            // Set GPU env vars
+            env::set_var("WHISPER_USE_GPU", "true");
+            env::set_var("WHISPER_GPU_DEVICE", "1");
+            env::set_var("WHISPER_FLASH_ATTN", "true");
+
+            let config = Config::from_env();
+            assert_eq!(config.whisper_use_gpu, Some(true));
+            assert_eq!(config.whisper_gpu_device, 1);
+            assert!(config.whisper_flash_attn);
+
+            // Clear and verify defaults
+            clear_env_vars();
+            let config = Config::from_env();
+            assert_eq!(config.whisper_use_gpu, None);
+            assert_eq!(config.whisper_gpu_device, 0);
+            assert!(!config.whisper_flash_attn);
+        }
     }
 }

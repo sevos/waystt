@@ -9,6 +9,33 @@ Configuration:
 - `ENABLE_AUDIO_FEEDBACK=true/false` - Enable/disable beeps
 - `BEEP_VOLUME=0.0-1.0` - Volume control (default: 0.1)
 
+## GPU Acceleration (Local Whisper)
+
+GPU features are **compile-time only** and **mutually exclusive**:
+
+```bash
+cargo build --release                    # CPU-only (default)
+cargo build --release --features cuda    # NVIDIA CUDA
+cargo build --release --features vulkan  # Vulkan (cross-platform)
+cargo build --release --features hipblas # AMD ROCm (Linux only)
+cargo build --release --features metal   # Apple Metal (macOS only)
+```
+
+Runtime GPU config (when `TRANSCRIPTION_PROVIDER=local`):
+- `WHISPER_USE_GPU=true/false` - Override compile-time GPU default
+- `WHISPER_GPU_DEVICE=0` - GPU device ID (default: 0)
+- `WHISPER_FLASH_ATTN=true/false` - Flash attention (default: false, incompatible with DTW)
+
+Testing with GPU features:
+```bash
+# Unit tests with GPU feature
+BEEP_VOLUME=0.0 cargo test --features cuda
+
+# Manual testing with local GPU transcription
+BEEP_VOLUME=0.0 TRANSCRIPTION_PROVIDER=local WHISPER_MODEL=ggml-base.en.bin \
+  WHISPER_USE_GPU=true cargo run --features cuda -- --envfile .env
+```
+
 ## Testing
 
 ### Environment Variables and Race Conditions
@@ -121,5 +148,6 @@ Key files for future development:
 - `src/beep.rs`: Musical audio feedback system with CPAL
 - `src/audio.rs`: Audio recording via PipeWire/CPAL
 - `src/config.rs`: Environment variable configuration
+- `src/transcription/local.rs`: Local whisper provider with GPU configuration
 - `src/whisper.rs`: OpenAI Whisper API client
 - `.env.example`: Configuration template

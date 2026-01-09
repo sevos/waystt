@@ -52,6 +52,13 @@ tokio-test = "0.4"
 name = "waystt"
 path = "src/main.rs"
 
+[features]
+default = []
+cuda = ["whisper-rs/cuda"]
+vulkan = ["whisper-rs/vulkan"]
+hipblas = ["whisper-rs/hipblas"]  # AMD ROCm, Linux only
+metal = ["whisper-rs/metal"]      # macOS only
+
 [profile.release]
 opt-level = 3
 lto = true

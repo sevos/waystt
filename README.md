@@ -300,6 +300,41 @@ waystt --download-model
 
 If the configured model is missing, the application will exit with an error. OpenAI remains the default provider.
 
+#### GPU Acceleration
+
+`waystt` supports GPU-accelerated local transcription when compiled with the appropriate feature flags. Due to limitations in `whisper-rs`, this *cannot* be configured at runtime, so you must choose your backend at compile time, and enable it with `WHISPER_USE_GPU=true`
+
+**Building with GPU support:**
+
+```bash
+# NVIDIA CUDA
+cargo build --release --features cuda
+
+# Vulkan (cross-platform)
+cargo build --release --features vulkan
+
+# AMD ROCm (Linux only)
+cargo build --release --features hipblas
+
+# Apple Metal (macOS only)
+cargo build --release --features metal
+```
+
+**Runtime GPU configuration:**
+
+When compiled with GPU support, GPU is enabled by default. You can override this with environment variables:
+
+```bash
+# Force CPU even when compiled with GPU support
+WHISPER_USE_GPU=false
+
+# Select specific GPU device (default: 0)
+WHISPER_GPU_DEVICE=1
+
+# Enable flash attention (faster but incompatible with DTW timestamps)
+WHISPER_FLASH_ATTN=true
+```
+
 **Popular Google language codes:**
 - `en-US` - English (United States)
 - `en-GB` - English (United Kingdom)

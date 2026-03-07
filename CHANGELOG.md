@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `--fast` command-line flag for quick startup without delays (~100ms vs ~1600ms)
+  - Starts recording immediately with asynchronous beep playback
+  - Captured beep audio is automatically trimmed during processing
+  - Ideal for quick dictation workflows
+
 ## [0.3.1] - 2025-10-06
 ### Changed
 - Updated project dependencies to the latest compatible releases.

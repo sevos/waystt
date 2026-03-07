@@ -106,6 +106,12 @@ pkill --signal SIGUSR1 waystt
 # Download local model and exit
 waystt --download-model
 
+# Start with standard initialization (safer, avoids beep capture)
+waystt
+
+# Start with fast initialization (quicker startup, beep plays asynchronously)
+waystt --fast
+
 # Start waystt and save output to file
 waystt > output.txt
 
@@ -127,6 +133,15 @@ pgrep -x waystt >/dev/null && pkill --signal SIGUSR1 waystt || (waystt [OPTIONS]
 ```
 
 This means: "If waystt is running, send signal to transcribe. Otherwise, start waystt with specified options."
+
+**With fast startup:**
+```bash
+# Fast mode with direct typing
+pgrep -x waystt >/dev/null && pkill --signal SIGUSR1 waystt || (waystt --fast --pipe-to ydotool type --file - &)
+
+# Fast mode with clipboard
+pgrep -x waystt >/dev/null && pkill --signal SIGUSR1 waystt || (waystt --fast --pipe-to wl-copy &)
+```
 
 ## Keyboard Shortcuts Setup
 
@@ -163,6 +178,29 @@ binds {
 ## Usage Examples
 
 waystt starts on-demand, records audio, transcribes it, outputs to stdout, then exits:
+
+### Startup Modes
+
+**Standard Mode (default, ~1600ms startup):**
+- Plays beep before recording starts
+- Waits for beep to finish (avoids capturing beep in recording)
+- Safer option for best audio quality
+
+**Fast Mode (~100ms startup):**
+```bash
+# Start with --fast flag for quick initialization
+waystt --fast
+
+# Fast mode with pipe to clipboard
+waystt --fast --pipe-to wl-copy
+
+# Fast mode with direct typing
+waystt --fast --pipe-to ydotool type --file -
+```
+
+- Starts recording immediately with async beep
+- May briefly capture startup beep (automatically trimmed during processing)
+- Ideal for quick dictation workflows
 
 ### Basic Usage (stdout)
 

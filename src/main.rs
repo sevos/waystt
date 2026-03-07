@@ -59,6 +59,12 @@ struct Args {
     /// Download the configured local model and exit
     #[arg(long)]
     download_model: bool,
+
+    /// Skip startup delays for faster initialization
+    /// Beep plays asynchronously and recording starts immediately
+    /// Trade-off: Initial beep may be partially captured (automatically trimmed during processing)
+    #[arg(long)]
+    fast: bool,
 }
 
 fn get_default_config_path() -> PathBuf {
@@ -461,25 +467,46 @@ async fn main() -> Result<()> {
     // Initialize audio recorder
     let mut recorder = AudioRecorder::new()?;
 
-    // Play recording start beep BEFORE starting recording to avoid capturing it
-    if let Err(e) = beep_player.play_async(BeepType::RecordingStart).await {
-        eprintln!("Warning: Failed to play recording start beep: {}", e);
+    // Handle startup based on fast mode
+    if args.fast {
+        // Fast mode: Play beep asynchronously and start immediately (no delays)
+        // Trade-off: Beep may be briefly captured but will be trimmed during processing
+        let beep_player_clone = beep_player.clone();
+        let _ = tokio::spawn(async move {
+            if let Err(e) = beep_player_clone.play_async(BeepType::RecordingStart).await {
+                eprintln!("Warning: Failed to play recording start beep: {}", e);
+            }
+        });
+
+        // Start recording immediately (no delays)
+        if let Err(e) = recorder.start_recording() {
+            eprintln!("Failed to start audio recording: {}", e);
+            eprintln!("This may be due to PipeWire not being available or insufficient permissions.");
+            return Err(e);
+        }
+
+        eprintln!("Audio recording started successfully! (--fast mode)");
+    } else {
+        // Standard mode: Play beep then wait before recording (safer, avoids beep capture)
+        if let Err(e) = beep_player.play_async(BeepType::RecordingStart).await {
+            eprintln!("Warning: Failed to play recording start beep: {}", e);
+        }
+
+        // Wait for beep to finish (500ms beep + 100ms buffer)
+        tokio::time::sleep(tokio::time::Duration::from_millis(600)).await;
+
+        // Start recording
+        if let Err(e) = recorder.start_recording() {
+            eprintln!("Failed to start audio recording: {}", e);
+            eprintln!("This may be due to PipeWire not being available or insufficient permissions.");
+            return Err(e);
+        }
+
+        eprintln!("Audio recording started successfully!");
+
+        // Give PipeWire a moment to start capturing
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
     }
-
-    // Give a moment for the beep to finish before starting recording (beep is now 500ms)
-    tokio::time::sleep(tokio::time::Duration::from_millis(600)).await;
-
-    // Start recording immediately
-    if let Err(e) = recorder.start_recording() {
-        eprintln!("Failed to start audio recording: {}", e);
-        eprintln!("This may be due to PipeWire not being available or insufficient permissions.");
-        return Err(e);
-    }
-
-    eprintln!("Audio recording started successfully!");
-
-    // Give PipeWire a moment to start capturing
-    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
     eprintln!("Ready. Send SIGUSR1 to transcribe and output to stdout.");
 
